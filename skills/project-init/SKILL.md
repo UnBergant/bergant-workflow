@@ -155,5 +155,5 @@ a phase on a missing optional tool.
 |------------|-------|-----------|
 | `toxic-opinion` skill + Codex CLI | second opinion in every phase | offer `npm i -g @openai/codex`, else skip with note |
 | WebSearch | PRD market / legal research | skip, note in docs |
-| Jira MCP (`mcp__atlassian__*`) | DECOMPOSITION → optional Jira sync | user declines or MCP missing → skip Jira; slices stay in `docs/slices/` |
+| Jira MCP (`mcp__atlassian__*`) | DECOMPOSITION → optional Jira sync | user declines or MCP missing → skip Jira; slices stay in `docs/plan/` |
 | design-agents + interface-design / Vercel skills | ARCHITECTURE design system | skip the design-system substeps, note in docs |

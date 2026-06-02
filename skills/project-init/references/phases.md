@@ -539,7 +539,7 @@ Suggest `/compact` before next phase.
 ## DECOMPOSITION
 
 **Goal:** Turn the plan into atomic, independently-shippable **task slices** that the
-`lifecycle` skill can pick up one at a time. Slices are written to `docs/slices/`. Jira is
+`lifecycle` skill can pick up one at a time. Slices are written to `docs/plan/`. Jira is
 optional and only offered *after* the slices exist.
 
 Read `docs/prd.md`, `docs/architecture.md`, and `docs/plan/phase-*.md` first.
@@ -549,8 +549,8 @@ self-contained unit of user-facing value that can go through the full lifecycle 
 (smaller than a phase, bigger than a single subtask). Order by dependency (foundational first).
 Number them `slice-001`, `slice-002`, … across the whole project.
 
-**Step 2 — Write one file per slice.** `mkdir -p docs/slices`, then create
-`docs/slices/slice-NNN-<kebab-title>.md`:
+**Step 2 — Write one file per slice.** `mkdir -p docs/plan`, then create
+`docs/plan/slice-NNN-<kebab-title>.md`:
 ```markdown
 # slice-NNN: <Title>
 
@@ -576,14 +576,14 @@ Depends on: <slice-NNN, … or "none">
 Discuss ordering/granularity with the user; adjust slices on request.
 
 **Step 4 — Optional Jira sync.** Ask the user plainly: **"Хочешь занести слайсы в Jira?"**
-- **No (default)** → skip. Slices live in `docs/slices/` and `lifecycle` reads them directly. Done.
+- **No (default)** → skip. Slices live in `docs/plan/` and `lifecycle` reads them directly. Done.
 - **Yes** → verify Jira MCP (`mcp__atlassian__*`) is available; if not, say so and skip.
   Then, via Agent only (jira-ops patterns — never call MCP in main context):
   - Ask for / reuse Jira project key + Cloud ID (check `config.jiraProjectKey` / `config.jiraCloudId` first; save both to `config`).
   - Create an **Epic** (project name), one **Task per slice**, **Sub-tasks** per slice task.
-  - Write returned Jira keys back into the matching `docs/slices/slice-NNN-*.md` files.
+  - Write returned Jira keys back into the matching `docs/plan/slice-NNN-*.md` files.
 
-**Step 5 — Present** summary: number of slices in `docs/slices/`, and Jira result (Epic key + counts, or "Jira: skipped").
+**Step 5 — Present** summary: number of slices in `docs/plan/`, and Jira result (Epic key + counts, or "Jira: skipped").
 
 **STOP.** Gate: `When ready: /bergant-workflow:project-init complete DECOMPOSITION`
 
@@ -678,7 +678,7 @@ Generated:
 - docs/prd.md
 - docs/architecture.md
 - docs/plan/phase-1.md ... phase-N.md
-- docs/slices/slice-001.md ... slice-NNN.md
+- docs/plan/slice-001.md ... slice-NNN.md
 - CLAUDE.md (created / updated)
 
 Jira: Epic <key> → N tasks, M subtasks (or "Jira: skipped")
