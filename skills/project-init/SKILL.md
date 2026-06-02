@@ -13,12 +13,14 @@ argument-hint: "[start <spec-file> [--from <phase>]|status|complete <phase>|reco
 
 **`status` (or no arguments):** execute INLINE — read `docs/spec-state.json` and display the phase table. Do NOT launch an agent. See "Status Display" below.
 
-**All other commands** (`start`, `complete`, `recover`): launch `Agent(general-purpose)` with this prompt:
+This skill's directory (its reference files live here) — resolved at runtime: !`echo ${CLAUDE_SKILL_DIR}`
+
+**All other commands** (`start`, `complete`, `recover`): launch `Agent(general-purpose)` with the prompt below. Replace `SKILL_DIR` with the absolute path printed just above:
 
 ```
 Read the project-init skill:
-- Commands and rules: ${CLAUDE_PLUGIN_ROOT}/skills/project-init/SKILL.md (from "## Agent Instructions")
-- Phase execution details: ${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/phases.md (read ONLY the active phase section)
+- Commands and rules: SKILL_DIR/SKILL.md (from "## Agent Instructions")
+- Phase execution details: SKILL_DIR/references/phases.md (read ONLY the active phase section)
 
 Execute command: $ARGUMENTS
 State file: docs/spec-state.json

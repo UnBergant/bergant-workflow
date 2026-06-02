@@ -3,7 +3,7 @@ name: lifecycle
 description: Orchestrate feature lifecycle — track steps, enforce gates, dispatch sub-agents. Use when starting a new task, checking lifecycle status, or advancing to the next step.
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Agent, Read
+allowed-tools: Agent, Read, Bash
 argument-hint: "[start|next|status|advance|complete <step>]"
 ---
 
@@ -13,12 +13,14 @@ argument-hint: "[start|next|status|advance|complete <step>]"
 
 **`status` (or no arguments):** execute INLINE — read `.lifecycle-state.json` and display the status table directly. Do NOT launch an agent. See "Status display" section below.
 
-**All other commands** (`start`, `next`, `advance`, `complete`, `recover`): launch `Agent(general-purpose)` with this prompt:
+This skill's directory (its reference files live here) — resolved at runtime: !`echo ${CLAUDE_SKILL_DIR}`
+
+**All other commands** (`start`, `next`, `advance`, `complete`, `recover`): launch `Agent(general-purpose)` with the prompt below. Replace `SKILL_DIR` with the absolute path printed just above:
 
 ```
 Read these files in order:
-1. ${CLAUDE_PLUGIN_ROOT}/skills/lifecycle/references/state-schema.md — state file structure
-2. ${CLAUDE_PLUGIN_ROOT}/skills/lifecycle/references/steps.md — find the section for the CURRENT step only
+1. SKILL_DIR/references/state-schema.md — state file structure
+2. SKILL_DIR/references/steps.md — find the section for the CURRENT step only
 
 Execute lifecycle command: $ARGUMENTS
 State file: .lifecycle-state.json
