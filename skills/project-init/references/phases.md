@@ -75,7 +75,7 @@ INPUT_VALIDATION gate:
 - Answer open questions or accept assumptions
 - Confirm spec is sufficient to proceed
 
-When ready: /project-init complete INPUT_VALIDATION
+When ready: /bergant-workflow:project-init complete INPUT_VALIDATION
 ```
 
 ---
@@ -164,7 +164,7 @@ Read `docs/REQUIREMENTS.md` first.
 
 **Step 7 — Present** summary with key decisions needed (scope trade-offs, MVP boundaries, legal risks).
 
-**STOP.** Gate: `When ready: /project-init complete PRD`
+**STOP.** Gate: `When ready: /bergant-workflow:project-init complete PRD`
 
 Suggest `/compact` before next phase.
 
@@ -471,7 +471,7 @@ Items that are intentionally deferred from MVP but MUST be addressed before scal
 
 **Step 11 — Present** findings. Where multiple approaches exist, frame as options with trade-offs. Ask user to choose.
 
-**STOP.** Gate: `When ready: /project-init complete ARCHITECTURE`
+**STOP.** Gate: `When ready: /bergant-workflow:project-init complete ARCHITECTURE`
 
 Suggest `/compact` before next phase.
 
@@ -530,7 +530,7 @@ Read `docs/prd.md` and `docs/architecture.md` first.
 
 **Step 5 — Present** the full plan. Discuss phase boundaries and priorities.
 
-**STOP.** Gate: `When ready: /project-init complete PLANNING`
+**STOP.** Gate: `When ready: /bergant-workflow:project-init complete PLANNING`
 
 Suggest `/compact` before next phase.
 
@@ -569,7 +569,7 @@ Return ONLY: created issue key and summary, or error message.
 
 **Step 5 — Present** summary: Epic key, number of tasks/subtasks created.
 
-**STOP.** Gate: `When ready: /project-init complete JIRA_SYNC`
+**STOP.** Gate: `When ready: /bergant-workflow:project-init complete JIRA_SYNC`
 
 Suggest `/compact` before next phase.
 
@@ -612,6 +612,43 @@ If `CLAUDE.md` already exists, **merge** — do not overwrite. Add a `## Project
 
 Keep CLAUDE.md concise — reference docs for details, don't duplicate.
 
+**Step 1b — Ensure `.gitignore`.** Create `.gitignore` in the project root if missing, or
+merge these entries into the existing one (never duplicate lines). This prevents secrets and
+transient orchestration files from ever being committed:
+
+```gitignore
+# Secrets & env — NEVER commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# Claude Code local config & agent state
+.claude/
+
+# Orchestration state files (transient)
+docs/spec-state.json
+.lifecycle-state.json
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs & OS / editor junk
+*.log
+.DS_Store
+.idea/
+.vscode/
+```
+
+Adjust the build/deps block to the project's actual stack (from `docs/architecture.md`).
+If any of these files are already tracked in git, warn the user and suggest
+`git rm --cached <file>` so they stop being committed.
+
 **Step 2 — Update state** → all phases completed.
 
 **Step 3 — Clean up state file.** Delete `docs/spec-state.json` — it was a transient orchestration artifact. All decisions are persisted in docs and CLAUDE.md.
@@ -629,5 +666,5 @@ Generated:
 
 Jira: Epic <key> → N tasks, M subtasks (or "skipped")
 
-Next: use /lifecycle start <first-task-key> to begin development.
+Next: use /bergant-workflow:lifecycle start <first-task-key> to begin development.
 ```

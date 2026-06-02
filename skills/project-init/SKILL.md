@@ -17,8 +17,8 @@ argument-hint: "[start <spec-file> [--from <phase>]|status|complete <phase>|reco
 
 ```
 Read the project-init skill:
-- Commands and rules: ~/.claude/skills/project-init/SKILL.md (from "## Agent Instructions")
-- Phase execution details: ~/.claude/skills/project-init/references/phases.md (read ONLY the active phase section)
+- Commands and rules: ${CLAUDE_PLUGIN_ROOT}/skills/project-init/SKILL.md (from "## Agent Instructions")
+- Phase execution details: ${CLAUDE_PLUGIN_ROOT}/skills/project-init/references/phases.md (read ONLY the active phase section)
 
 Execute command: $ARGUMENTS
 State file: docs/spec-state.json
@@ -32,7 +32,7 @@ If the agent returns an error, display it without re-running.
 
 ## Status Display
 
-Read `docs/spec-state.json`. If missing: "No active spec analysis. Use `/project-init start <spec-file>` to begin."
+Read `docs/spec-state.json`. If missing: "No active spec analysis. Use `/bergant-workflow:project-init start <spec-file>` to begin."
 
 Display formatted table:
 - Each phase with status (pending, in_progress, completed)
@@ -121,7 +121,7 @@ Phase name matching is **case-insensitive** (`prd`, `PRD`, `Prd` all work).
 ## Critical Rules
 
 1. **Never skip phases** unless `--from` is used at start. Order: INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → JIRA_SYNC → FINALIZE.
-2. **Never advance past user gates** without explicit `/project-init complete <phase>`.
+2. **Never advance past user gates** without explicit `/bergant-workflow:project-init complete <phase>`.
 3. **Always update `docs/spec-state.json`** after every phase transition. State file is source of truth.
 4. **Always read state file and existing docs** before acting. Never rely on conversation history.
 5. **Sub-agents for heavy work.** Web research, toxic opinion, Jira ops — always via Agent to protect context.
@@ -142,3 +142,16 @@ Phase name matching is **case-insensitive** (`prd`, `PRD`, `Prd` all work).
 - `version` — schema version (current: 2) for future migration compatibility
 - `config` — runtime settings acquired during phases (Jira Cloud ID, project key, etc.)
 - `phases` — status of each phase with gate info
+
+## Optional dependencies
+
+These power specific phases. The first time a phase needs one and it's missing, offer the user a
+**one-time choice — install it now or skip** (note the skip in the output docs). Never hard-block
+a phase on a missing optional tool.
+
+| Dependency | Phase | If missing |
+|------------|-------|-----------|
+| `toxic-opinion` skill + Codex CLI | second opinion in every phase | offer `npm i -g @openai/codex`, else skip with note |
+| WebSearch | PRD market / legal research | skip, note in docs |
+| Jira MCP (`mcp__atlassian__*`) | JIRA_SYNC | skip phase, mark "Jira MCP not available" |
+| design-agents + interface-design / Vercel skills | ARCHITECTURE design system | skip the design-system substeps, note in docs |

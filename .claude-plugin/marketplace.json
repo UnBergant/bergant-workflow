@@ -1,5 +1,6 @@
 {
   "name": "bergant-workflow",
+  "description": "Bergant's engineering-workflow plugins: spec-to-docs and feature lifecycle orchestration with gate-enforcement hooks.",
   "owner": {
     "name": "Bergant"
   },

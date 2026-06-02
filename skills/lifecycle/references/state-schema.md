@@ -9,7 +9,7 @@ File: `.lifecycle-state.json`
   "startedAt": "<ISO timestamp>",
   "currentStep": "CONTEXT_CHECK",
   "awaitingCompact": true,
-  "scopeApprovedAt": "<ISO timestamp — set when user runs /lifecycle complete SCOPE>",
+  "scopeApprovedAt": "<ISO timestamp — set when user runs /bergant-workflow:lifecycle complete SCOPE>",
   "codexOpinionIncorporated": false,
   "codexFindings": [],
   "scopeNotes": {
@@ -63,7 +63,7 @@ These fields survive `/compact` and give the next session enough semantic anchor
 
 | Field | Type | Set when | Purpose |
 |-------|------|----------|---------|
-| `scopeApprovedAt` | ISO timestamp | User runs `/lifecycle complete SCOPE` | Proof that SCOPE gate passed; ordering |
+| `scopeApprovedAt` | ISO timestamp | User runs `/bergant-workflow:lifecycle complete SCOPE` | Proof that SCOPE gate passed; ordering |
 | `codexOpinionIncorporated` | boolean | `/toxic-opinion` ran during SCOPE and findings merged into approved scope | Guards against re-asking Codex post-compact |
 | `codexFindings` | string[] | Approved SCOPE — distill Codex second-opinion diffs into short semantic tags | Each tag = anchor to rehydrate full context in PLAN (e.g., `"schema_enum_fix_required"`, `"split_transactions"`) |
 | `scopeNotes.approvedScope` | string[] | Approved SCOPE | Bullet list of concrete scope items the user confirmed; source of truth for PLAN and IMPLEMENT |

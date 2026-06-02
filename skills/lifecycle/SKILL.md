@@ -17,15 +17,15 @@ argument-hint: "[start|next|status|advance|complete <step>]"
 
 ```
 Read these files in order:
-1. ~/.claude/skills/lifecycle/references/state-schema.md — state file structure
-2. ~/.claude/skills/lifecycle/references/steps.md — find the section for the CURRENT step only
+1. ${CLAUDE_PLUGIN_ROOT}/skills/lifecycle/references/state-schema.md — state file structure
+2. ${CLAUDE_PLUGIN_ROOT}/skills/lifecycle/references/steps.md — find the section for the CURRENT step only
 
 Execute lifecycle command: $ARGUMENTS
 State file: .lifecycle-state.json
 
 Critical rules:
 1. NEVER skip a step. Order: CONTEXT_CHECK → SCOPE → PLAN → COMPONENTS → IMPLEMENT → VERIFY → TEST → REVIEW → DOCUMENT → CLOSE.
-2. NEVER advance past a user gate without `/lifecycle complete <step>`.
+2. NEVER advance past a user gate without `/bergant-workflow:lifecycle complete <step>`.
 3. Always update state file after every transition.
 4. Always read state file before any action.
 5. Use Agent tool for heavy work (IMPLEMENT subtasks, REVIEW).
@@ -43,7 +43,7 @@ If the agent returns an error, display it to the user without re-running.
 
 ## Status display
 
-Read `.lifecycle-state.json`. If no file exists, say "No active lifecycle. Use `/lifecycle start <task-name>` to begin."
+Read `.lifecycle-state.json`. If no file exists, say "No active lifecycle. Use `/bergant-workflow:lifecycle start <task-name>` to begin."
 
 Display a formatted table:
 - Each step with status emoji (⏳ pending, 🔄 in_progress, ✅ completed)
@@ -64,4 +64,20 @@ Display a formatted table:
 
 ## State File Location
 
-`.lifecycle-state.json` — in the project root. This file is gitignored.
+`.lifecycle-state.json` — in the project root (NOT under `.claude/`, which would trigger a
+write-permission prompt on every update). This file is gitignored and deleted on CLOSE.
+
+## Optional dependencies
+
+These power specific steps. The first time a step needs one and it's missing, offer the user a
+**one-time choice — install it now or skip the step** (note the skip). Never hard-block the
+lifecycle on a missing optional tool.
+
+| Dependency | Step | If missing |
+|------------|------|-----------|
+| `jq` (required by the hooks) | compact/gate hooks | hooks no-op → gate enforcement is OFF; warn and suggest `brew install jq` |
+| `toxic-opinion` skill + Codex CLI | SCOPE second opinion | offer `npm i -g @openai/codex`, else skip with note |
+| `toxic-review` skill + Codex CLI | REVIEW | offer install once, else single review Agent only |
+| GitHub MCP (`mcp__github__*`) | CLOSE (PR create/merge) | offer to set up the MCP, else stop and let the user open/merge the PR manually |
+| Storybook | COMPONENTS | offer to add it, else skip the component-review substep |
+| design-agents (ui/ux/visual/brand) | COMPONENTS / design tasks | proceed without the design pass, note it |

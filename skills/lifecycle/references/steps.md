@@ -17,11 +17,11 @@ Read only the section for the current step. Do not load the entire file into con
 - Read task description from `docs/plan/slice-*.md` (find the relevant slice file for this task).
 - Present: summary, scope, acceptance criteria.
 - Provide AI perspective: challenges, ambiguities, questions.
-- **MANDATORY: Run `/toxic-opinion` for second opinion on the scope.** Frame the Codex prompt around the task scope, key decisions, and potential risks. Present Codex findings alongside your own.
-- **STOP HERE.** Display requirements, AI perspective, Codex second opinion, and: `When ready: /lifecycle complete SCOPE`
+- **Run `/toxic-opinion` for a second opinion on the scope** (default ON). Frame the Codex prompt around the task scope, key decisions, and potential risks. Present Codex findings alongside your own. If the toxic-opinion skill or Codex CLI is unavailable, offer the user a one-time choice — install it (`npm i -g @openai/codex`) or skip — and note the skip. Never hard-block on it.
+- **STOP HERE.** Display requirements, AI perspective, Codex second opinion, and: `When ready: /bergant-workflow:lifecycle complete SCOPE`
 - Do NOT proceed to PLAN until user confirms.
 
-**On `/lifecycle complete SCOPE` (MANDATORY state writes — these are standard fields, see `state-schema.md`):**
+**On `/bergant-workflow:lifecycle complete SCOPE` (MANDATORY state writes — these are standard fields, see `state-schema.md`):**
 
 Write to `.lifecycle-state.json`:
 - `scopeApprovedAt`: current ISO timestamp
@@ -74,7 +74,7 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 
 - Run: `npm run build`, `npm run lint`.
 - Display test plan: task-specific manual checks (user-facing checklist, not developer checklist).
-- **STOP HERE.** `When done: /lifecycle complete VERIFY`
+- **STOP HERE.** `When done: /bergant-workflow:lifecycle complete VERIFY`
 - Do NOT proceed further.
 
 ## TEST
@@ -86,13 +86,24 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 
 ## REVIEW (gate: user)
 
-- **First: commit all changes.** Submitting for review === commit. Stage all changed files and create a commit on the feature branch. Do NOT push.
-- Launch review Agent AND run `/toxic-review` in parallel (MANDATORY — never skip toxic-review).
+- **Pre-commit safety check (BEFORE staging — do not skip).** Make sure no secrets or
+  transient files are about to be committed:
+  - Inspect what would be staged: `git status --porcelain` and `git diff --cached --name-only`.
+  - **Block-list:** `.env`, `.env.*` (except `.env.example`), `*.key`, `*.pem`, `secrets/`,
+    `.lifecycle-state.json`, `docs/spec-state.json`, `.claude/`, and any file containing
+    obvious credentials (API keys, tokens, connection strings, private keys).
+  - For each match: verify it is listed in `.gitignore`. If not → add it to `.gitignore`.
+    If it is already tracked → `git rm --cached <file>` so it stops being committed.
+  - Scan the staged diff for inline secrets (high-entropy strings, `password=`, `Bearer `,
+    `postgres://...:...@`). If found → STOP, tell the user, do NOT commit until resolved.
+  - Only proceed to commit once the working tree is clean of secrets/temp files.
+- **Then: commit all changes.** Submitting for review === commit. Stage all changed files and create a commit on the feature branch. Do NOT push.
+- Launch review Agent AND run `/toxic-review` in parallel (default ON). If the toxic-review skill or Codex CLI is unavailable, offer to install it once or proceed with the single review Agent only — note which was used.
 - toxic-review reviews the branch diff — pass base branch as argument (e.g., `/toxic-review master`).
 - Present findings: MUST FIX / SHOULD FIX / NIT.
 - **STOP.** Ask user which fixes to apply.
 
-**On `/lifecycle complete REVIEW`:**
+**On `/bergant-workflow:lifecycle complete REVIEW`:**
 - Apply fixes, commit, build/lint, mark completed, advance.
 
 ## DOCUMENT
@@ -111,11 +122,11 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Create PR (use GitHub MCP `create_pull_request`, not gh CLI).
 - **STOP.** Show PR link. Ask user to review.
 
-**On `/lifecycle complete CLOSE`:**
+**On `/bergant-workflow:lifecycle complete CLOSE`:**
 1. Merge PR (use GitHub MCP `merge_pull_request`, not gh CLI). Delete remote branch.
 2. `git checkout master && git pull`.
 3. `git branch -d <branch>`.
 4. `rm .lifecycle-state.json`.
 5. **Clean up TaskList:** Delete all lifecycle tasks (`[CONTEXT_CHECK]`, `[SCOPE]`, `[PLAN]`, `[COMPONENTS]`, `[IMPLEMENT]`, `[VERIFY]`, `[TEST]`, `[REVIEW]`, `[DOCUMENT]`, `[CLOSE]`) via `TaskUpdate` with `status: "deleted"`.
 6. Update task status in `docs/plan/slice-*.md` (change ⏳ to ✅).
-7. Suggest: `/lifecycle next`.
+7. Suggest: `/bergant-workflow:lifecycle next`.
