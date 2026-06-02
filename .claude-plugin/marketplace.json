@@ -1,0 +1,13 @@
+{
+  "name": "bergant-workflow",
+  "owner": {
+    "name": "Bergant"
+  },
+  "plugins": [
+    {
+      "name": "bergant-workflow",
+      "source": "./",
+      "description": "project-init + lifecycle skills with lifecycle gate/compact hooks."
+    }
+  ]
+}

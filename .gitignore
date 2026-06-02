@@ -1,0 +1,8 @@
+# Lifecycle / project-init runtime state — never commit, these are per-project artifacts
+.lifecycle-state.json
+docs/spec-state.json
+
+# OS / editor
+.DS_Store
+.idea/
+*.log

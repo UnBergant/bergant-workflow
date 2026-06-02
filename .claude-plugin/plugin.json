@@ -1,0 +1,9 @@
+{
+  "name": "bergant-workflow",
+  "description": "Engineering workflow plugin: spec-to-docs (project-init) and feature lifecycle orchestration (lifecycle) with compact/gate-enforcement hooks.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Bergant"
+  },
+  "keywords": ["workflow", "lifecycle", "project-init", "orchestration", "hooks"]
+}
