@@ -536,40 +536,56 @@ Suggest `/compact` before next phase.
 
 ---
 
-## JIRA_SYNC
+## DECOMPOSITION
 
-**Goal:** Push plan structure to Jira.
+**Goal:** Turn the plan into atomic, independently-shippable **task slices** that the
+`lifecycle` skill can pick up one at a time. Slices are written to `docs/slices/`. Jira is
+optional and only offered *after* the slices exist.
 
-**Prerequisite check:** Verify that Jira MCP tools (`mcp__atlassian__*`) are available. If not — tell the user Jira sync is unavailable, mark phase as `completed` with note "skipped: Jira MCP not available", and advance to FINALIZE.
+Read `docs/prd.md`, `docs/architecture.md`, and `docs/plan/phase-*.md` first.
 
-All Jira operations MUST go through Agent (never call MCP Jira tools in main context — responses bloat context). Use jira-ops skill patterns.
+**Step 1 — Derive slices.** Break the planned phases into vertical slices — each a
+self-contained unit of user-facing value that can go through the full lifecycle on its own
+(smaller than a phase, bigger than a single subtask). Order by dependency (foundational first).
+Number them `slice-001`, `slice-002`, … across the whole project.
 
-**Step 1 — Ask user for:**
-- Jira project key (e.g., "KAN")
-- Confirm or provide Jira Cloud ID (check `config.jiraCloudId` in state file first; if missing, look up via `mcp__atlassian__*` or ask user)
-- Save both to `config` in state file for reuse
+**Step 2 — Write one file per slice.** `mkdir -p docs/slices`, then create
+`docs/slices/slice-NNN-<kebab-title>.md`:
+```markdown
+# slice-NNN: <Title>
 
-**Step 2 — Create structure:**
-- **Epic** → project name (summary from state file)
-- **Task** (one per phase) → linked to Epic as child
-- **Sub-task** (one per atomic subtask) → linked to parent Task
+Status: ⏳ pending
+Phase: <which phase-N this belongs to>
+Depends on: <slice-NNN, … or "none">
 
-**Step 3 — For each item,** launch Agent with jira-ops patterns:
+## Scope
+<user-visible outcome this slice delivers>
+
+## Out of scope
+<explicitly not in this slice>
+
+## Tasks
+- [ ] <atomic task> [S/M/L]
+  - DoD: <how to verify>
+
+## Acceptance criteria
+- <what "done" looks like for this slice>
 ```
-Create Jira [Epic|Task|Sub-task] using mcp__atlassian__createJiraIssue with cloudId from state config.
-Project: <key>
-Type: <Epic|Task|Sub-task>
-Summary: <name>
-Description: <from plan file>
-Parent: <parent key if Task or Sub-task>
-Return ONLY: created issue key and summary, or error message.
-```
 
-**Step 4 — Update plan files** with Jira keys (e.g., `- [ ] KAN-15: N.1: Setup Express server`).
+**Step 3 — Present the slice list** as a table: id | title | phase | depends-on | size.
+Discuss ordering/granularity with the user; adjust slices on request.
 
-**Step 5 — Present** summary: Epic key, number of tasks/subtasks created.
+**Step 4 — Optional Jira sync.** Ask the user plainly: **"Хочешь занести слайсы в Jira?"**
+- **No (default)** → skip. Slices live in `docs/slices/` and `lifecycle` reads them directly. Done.
+- **Yes** → verify Jira MCP (`mcp__atlassian__*`) is available; if not, say so and skip.
+  Then, via Agent only (jira-ops patterns — never call MCP in main context):
+  - Ask for / reuse Jira project key + Cloud ID (check `config.jiraProjectKey` / `config.jiraCloudId` first; save both to `config`).
+  - Create an **Epic** (project name), one **Task per slice**, **Sub-tasks** per slice task.
+  - Write returned Jira keys back into the matching `docs/slices/slice-NNN-*.md` files.
 
-**STOP.** Gate: `When ready: /bergant-workflow:project-init complete JIRA_SYNC`
+**Step 5 — Present** summary: number of slices in `docs/slices/`, and Jira result (Epic key + counts, or "Jira: skipped").
+
+**STOP.** Gate: `When ready: /bergant-workflow:project-init complete DECOMPOSITION`
 
 Suggest `/compact` before next phase.
 
@@ -662,9 +678,10 @@ Generated:
 - docs/prd.md
 - docs/architecture.md
 - docs/plan/phase-1.md ... phase-N.md
+- docs/slices/slice-001.md ... slice-NNN.md
 - CLAUDE.md (created / updated)
 
-Jira: Epic <key> → N tasks, M subtasks (or "skipped")
+Jira: Epic <key> → N tasks, M subtasks (or "Jira: skipped")
 
 Next: use /bergant-workflow:lifecycle start <first-task-key> to begin development.
 ```

@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: Framework for creating project documentation from specs — reviews, research, architecture, planning, and Jira sync. Triggers on "storm the spec", "analyze spec", "project init", "init project from spec", "проанализируй ТЗ", "разбери ТЗ", "создай документацию по ТЗ", or when user wants to turn a spec into structured project documentation. Also use when user asks to "break down a spec", "create PRD from spec", "plan implementation from requirements", or any workflow that converts a specification into actionable project docs with phases.
+description: Framework for creating project documentation from specs — reviews, research, architecture, planning, task decomposition into slices, and optional Jira sync. Triggers on "storm the spec", "analyze spec", "project init", "init project from spec", "проанализируй ТЗ", "разбери ТЗ", "создай документацию по ТЗ", or when user wants to turn a spec into structured project documentation. Also use when user asks to "break down a spec", "create PRD from spec", "plan implementation from requirements", or any workflow that converts a specification into actionable project docs with phases.
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Agent, Read, Write, Edit, Bash, Glob, Grep
@@ -87,7 +87,7 @@ You manage the spec-to-documentation framework. State persists in `docs/spec-sta
     "PRD": { "status": "pending", "gate": "user", "gateDescription": "Approve product requirements" },
     "ARCHITECTURE": { "status": "pending", "gate": "user", "gateDescription": "Approve architecture and tech decisions" },
     "PLANNING": { "status": "pending", "gate": "user", "gateDescription": "Approve development phases" },
-    "JIRA_SYNC": { "status": "pending", "gate": "user", "gateDescription": "Confirm Jira project key and structure" },
+    "DECOMPOSITION": { "status": "pending", "gate": "user", "gateDescription": "Approve task slices (optional Jira sync after)" },
     "FINALIZE": { "status": "pending", "gate": "auto" }
   }
 }
@@ -120,7 +120,7 @@ Phase name matching is **case-insensitive** (`prd`, `PRD`, `Prd` all work).
 
 ## Critical Rules
 
-1. **Never skip phases** unless `--from` is used at start. Order: INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → JIRA_SYNC → FINALIZE.
+1. **Never skip phases** unless `--from` is used at start. Order: INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → DECOMPOSITION → FINALIZE.
 2. **Never advance past user gates** without explicit `/bergant-workflow:project-init complete <phase>`.
 3. **Always update `docs/spec-state.json`** after every phase transition. State file is source of truth.
 4. **Always read state file and existing docs** before acting. Never rely on conversation history.
@@ -128,7 +128,7 @@ Phase name matching is **case-insensitive** (`prd`, `PRD`, `Prd` all work).
 6. **Jira only via agents.** Never call `mcp__atlassian__*` in main context. Use jira-ops skill patterns.
 7. **Interactive by default.** Multiple options → present trade-offs, ask user. Don't decide silently.
 8. **MVP mindset.** Core flow first, polish last. Flag post-MVP ideas but don't over-plan them.
-9. **Suggest `/compact`** after heavy phases (PRD, ARCHITECTURE, PLANNING, JIRA_SYNC).
+9. **Suggest `/compact`** after heavy phases (PRD, ARCHITECTURE, PLANNING, DECOMPOSITION).
 10. **Never overwrite docs** without asking. If updating, show diff or ask permission first.
 11. **Optional integrations are opt-in.** Always ask before web research or toxic-opinion. If tool unavailable, skip and note in docs.
 12. **Files are the contract.** All decisions must be captured in docs before completing a phase. Conversation is ephemeral, files persist.
@@ -153,5 +153,5 @@ a phase on a missing optional tool.
 |------------|-------|-----------|
 | `toxic-opinion` skill + Codex CLI | second opinion in every phase | offer `npm i -g @openai/codex`, else skip with note |
 | WebSearch | PRD market / legal research | skip, note in docs |
-| Jira MCP (`mcp__atlassian__*`) | JIRA_SYNC | skip phase, mark "Jira MCP not available" |
+| Jira MCP (`mcp__atlassian__*`) | DECOMPOSITION → optional Jira sync | user declines or MCP missing → skip Jira; slices stay in `docs/slices/` |
 | design-agents + interface-design / Vercel skills | ARCHITECTURE design system | skip the design-system substeps, note in docs |

@@ -5,7 +5,7 @@ enforce their gates:
 
 | Component | Type | What it does |
 |-----------|------|--------------|
-| `project-init` | skill | Turns a spec/ТЗ into structured docs: `INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → JIRA_SYNC → FINALIZE` |
+| `project-init` | skill | Turns a spec/ТЗ into structured docs: `INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → DECOMPOSITION → FINALIZE` (DECOMPOSITION writes task slices to `docs/slices/`; Jira optional) |
 | `lifecycle` | skill | Orchestrates a feature end-to-end: `CONTEXT_CHECK → SCOPE → PLAN → COMPONENTS → IMPLEMENT → VERIFY → TEST → REVIEW → DOCUMENT → CLOSE` |
 | 3 hooks | hooks | Enforce the compact-gate and user-gates of `lifecycle` (see below) |
 
