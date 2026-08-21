@@ -18,11 +18,10 @@ After install the commands are **namespaced**:
 
 ## Install
 
-This repo doubles as a plugin **marketplace**. No need to publish to the official
-Anthropic marketplace — install straight from git:
+This repo doubles as a plugin **marketplace**, so it installs straight from git:
 
 ```
-/plugin marketplace add <owner>/bergant-workflow      # or the full git URL
+/plugin marketplace add UnBergant/bergant-workflow
 /plugin install bergant-workflow@bergant-workflow
 ```
 

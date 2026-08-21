@@ -1,14 +1,20 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "bergant-workflow",
   "description": "Bergant's engineering-workflow plugins: spec-to-docs and feature lifecycle orchestration with gate-enforcement hooks.",
   "owner": {
-    "name": "Bergant"
+    "name": "Igor Druzhinin",
+    "url": "https://github.com/UnBergant"
   },
   "plugins": [
     {
       "name": "bergant-workflow",
+      "displayName": "Bergant Workflow",
       "source": "./",
-      "description": "project-init + lifecycle skills with lifecycle gate/compact hooks."
+      "description": "project-init + lifecycle skills with lifecycle gate/compact hooks.",
+      "category": "productivity",
+      "license": "MIT",
+      "homepage": "https://github.com/UnBergant/bergant-workflow"
     }
   ]
 }

@@ -1,9 +1,14 @@
 {
   "name": "bergant-workflow",
+  "displayName": "Bergant Workflow",
   "description": "Engineering workflow plugin: spec-to-docs (project-init) and feature lifecycle orchestration (lifecycle) with compact/gate-enforcement hooks.",
   "version": "0.1.0",
   "author": {
-    "name": "Bergant"
+    "name": "Igor Druzhinin",
+    "url": "https://github.com/UnBergant"
   },
+  "homepage": "https://github.com/UnBergant/bergant-workflow",
+  "repository": "https://github.com/UnBergant/bergant-workflow",
+  "license": "MIT",
   "keywords": ["workflow", "lifecycle", "project-init", "orchestration", "hooks"]
 }
