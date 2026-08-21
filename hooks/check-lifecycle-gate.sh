@@ -1,6 +1,6 @@
 #!/bin/bash
 # Stop hook: prevents Claude from finishing when a user gate was skipped.
-# Part of lifecycle system: skill=~/.claude/skills/lifecycle/SKILL.md
+# Part of lifecycle system: skill=skills/lifecycle/SKILL.md (bergant-workflow plugin)
 #
 # Exit codes:
 #   0 — allow (no lifecycle active, or no gates skipped)
@@ -25,7 +25,7 @@ if [ "$STOP_ACTIVE" = "true" ]; then
 fi
 
 # Ordered steps
-STEPS=("CONTEXT_CHECK" "SCOPE" "PLAN" "IMPLEMENT" "VERIFY" "TEST" "REVIEW" "DOCUMENT" "CLOSE")
+STEPS=("CONTEXT_CHECK" "SCOPE" "PLAN" "COMPONENTS" "IMPLEMENT" "VERIFY" "TEST" "REVIEW" "DOCUMENT" "CLOSE")
 
 # Read step statuses and gates
 found_incomplete_gate=false
