@@ -17,7 +17,7 @@ Read only the section for the current step. Do not load the entire file into con
 - Read task description from `docs/plan/slice-*.md` (find the relevant slice file for this task).
 - Present: summary, scope, acceptance criteria.
 - Provide AI perspective: challenges, ambiguities, questions.
-- **Run `/toxic-opinion` for a second opinion on the scope** (default ON). Frame the Codex prompt around the task scope, key decisions, and potential risks. Present Codex findings alongside your own. If the toxic-opinion skill or Codex CLI is unavailable, offer the user a one-time choice — install it (`npm i -g @openai/codex`) or skip — and note the skip. Never hard-block on it.
+- **Run `/toxic-opinion` for a second opinion on the scope** (default ON). Frame the Codex prompt around the task scope, key decisions, and potential risks. Present Codex findings alongside your own. If no second-opinion skill is available, note the skip and continue with your own analysis. Never hard-block on it.
 - **STOP HERE.** Display requirements, AI perspective, Codex second opinion, and: `When ready: /bergant-workflow:lifecycle complete SCOPE`
 - Do NOT proceed to PLAN until user confirms.
 
@@ -98,7 +98,7 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
     `postgres://...:...@`). If found → STOP, tell the user, do NOT commit until resolved.
   - Only proceed to commit once the working tree is clean of secrets/temp files.
 - **Then: commit all changes.** Submitting for review === commit. Stage all changed files and create a commit on the feature branch. Do NOT push.
-- Launch review Agent AND run `/toxic-review` in parallel (default ON). If the toxic-review skill or Codex CLI is unavailable, offer to install it once or proceed with the single review Agent only — note which was used.
+- Launch review Agent AND, if a dual-review skill such as `/toxic-review` is available, run it in parallel (default ON). If not available, proceed with the single review Agent only — note which was used.
 - toxic-review reviews the branch diff — pass base branch as argument (e.g., `/toxic-review master`).
 - Present findings: MUST FIX / SHOULD FIX / NIT.
 - **STOP.** Ask user which fixes to apply.

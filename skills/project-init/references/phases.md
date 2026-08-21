@@ -256,35 +256,49 @@ This step produces design system documentation (`docs/design-system.md`, `docs/d
 
 8b. **Run design agents and skills** to generate the design system. Execute in the order below — each step builds on the previous. All run via `Agent` tool in isolated subprocesses.
 
-  **Phase 1 — Design Vision (ctrlship agents, `~/.claude/agents/`)**
+  **Phase 1 — Design Vision (optional design agents)**
 
-  These 4 agents form a coordinated design team. Orchestration protocol: `~/.claude/rules/design-team.md`.
-  Run sequentially — each agent's output is context for the next.
+  These 4 agents form a coordinated design team, run sequentially — each agent's output is
+  context for the next. **They are NOT bundled with this plugin.** Before starting, check
+  which of them exist as agent types in the current session.
+
+  - **All four available** → run them in the order below.
+  - **Some or none available** → do NOT block and do NOT silently skip. Produce the same four
+    outputs yourself, in one `Agent(general-purpose)` subprocess per missing role, using the
+    role description below as the prompt. The deliverable is identical (`BRIEF.md`); only the
+    specialization is weaker. Note in `BRIEF.md` which roles ran generic.
 
   1. **Brand Agent** (`brand-agent`) — FIRST. Establish brand direction: purpose, personality, voice, visual identity principles. If no existing brand: runs discovery questions with user. If brand exists: Executor mode (apply existing guidelines). Output: brand brief.
   2. **UX Agent** (`ux-agent`) — Interaction design: user flows, navigation patterns, WCAG 2.2 compliance, cognitive load analysis. Input: brand brief + PRD user stories. Output: interaction patterns, flow specs, accessibility requirements.
   3. **Visual Agent** (`visual-agent`) — Creative direction: color palette (OKLCH), typography pairing, spacing scale, motion/animation, dark mode preparation. Input: brand brief + UX patterns. Output: visual design tokens, creative brief.
   4. **UI Agent** (`ui-agent`) — Component architecture: compound components, design token layers (global/alias/component), 9-state coverage (empty/loading/partial/loaded/error/offline/stale/disabled/read-only), ARIA patterns, responsive framework. Input: all previous output. Output: component specs, token architecture.
 
-  After all 4 agents: produce `BRIEF.md` artifact with consolidated design decisions. Present to user for approval before proceeding.
+  Priority when the roles disagree: WCAG A/AA is a hard veto, then existing token *values*
+  (agents may add tokens, never redefine existing ones), then UX, then UI, then visual taste.
 
-  **Phase 2 — Technical Design System (skills)**
+  After all 4 roles: produce `BRIEF.md` artifact with consolidated design decisions. Present to
+  user for approval before proceeding.
 
-  Run after Phase 1 is approved. Skills refine the vision into implementable specs.
+  **Phase 2 — Technical Design System (optional skills)**
 
-  1. **Interface Design** (`/init`) — Initialize persistent design system in `.interface-design/system.md`. Takes Phase 1 output and converts to: spacing grid, color tokens, depth strategy, surface elevation, button heights, card padding. Choose design direction (e.g., "Precision & Density" for admin panels, "Warmth & Approachability" for consumer). This file auto-loads in future sessions — ensures consistency.
-  2. **Vercel Composition Patterns** — Define component architecture patterns: compound components, context providers, explicit variants, controlled vs uncontrolled. Input: UI Agent component specs.
-  3. **Vercel Web Design Guidelines** — Audit all design decisions against 100+ UX/accessibility rules: focus management, form interactions, animation, typography, touch targets, i18n. Flag violations.
-  4. **Vercel React Best Practices** — Validate performance patterns for the chosen React/Next.js version: rendering, memoization, code splitting, server components.
-  5. **Anthropic Frontend Design** (if installed) — Cross-check for generic AI aesthetics. Ensure distinctive, production-grade choices (avoid: overused fonts like Inter/Roboto, cliché purple gradients, predictable layouts).
+  Run after Phase 1 is approved. These skills refine the vision into implementable specs.
+  None of them ship with this plugin — each is listed with where it comes from. For any that
+  is not installed, apply the described check inline and note in the docs that it ran without
+  the dedicated skill.
+
+  1. **Interface Design** (`/init`, from the `interface-design` skill) — Initialize persistent design system in `.interface-design/system.md`. Takes Phase 1 output and converts to: spacing grid, color tokens, depth strategy, surface elevation, button heights, card padding. Choose design direction (e.g., "Precision & Density" for admin panels, "Warmth & Approachability" for consumer). This file auto-loads in future sessions — ensures consistency.
+  2. **Vercel Composition Patterns** (Vercel's Claude Code skills) — Define component architecture patterns: compound components, context providers, explicit variants, controlled vs uncontrolled. Input: UI Agent component specs.
+  3. **Vercel Web Design Guidelines** (Vercel's Claude Code skills) — Audit all design decisions against 100+ UX/accessibility rules: focus management, form interactions, animation, typography, touch targets, i18n. Flag violations.
+  4. **Vercel React Best Practices** (Vercel's Claude Code skills) — Validate performance patterns for the chosen React/Next.js version: rendering, memoization, code splitting, server components.
+  5. **Frontend Design** (Anthropic's `frontend-design` skill) — Cross-check for generic AI aesthetics. Ensure distinctive, production-grade choices (avoid: overused fonts like Inter/Roboto, cliché purple gradients, predictable layouts).
 
   **Orchestration rules:**
-  - Phase 1 agents produce BRIEF.md → user approves → Phase 2 skills execute
+  - Phase 1 produces BRIEF.md → user approves → Phase 2 executes
   - Each agent/skill runs in its own `Agent` subprocess — no context pollution
   - Pass only the relevant output between steps (brief, tokens, component specs), not raw conversation
-  - If an agent or skill is not installed — skip it, note in docs. Never block on missing tools
-  - Protected zones: existing design tokens from Phase 1 are sacred — Phase 2 skills can use and extend them but NEVER modify source values
-  - Token budget warning: 4 agents + 5 skills is heavy. If context is limited, prioritize: Brand → Visual → UI Agent → Interface Design → Web Design Guidelines. Skip others.
+  - A missing agent or skill never blocks the phase — fall back as described above and record the fallback
+  - Protected zones: design tokens approved in Phase 1 are sacred — Phase 2 can use and extend them but NEVER modify source values
+  - Token budget warning: 4 roles + 5 skills is heavy. If context is limited, prioritize: Brand → Visual → UI → Interface Design → Web Design Guidelines. Skip others.
 
 8c. **Generate `docs/design-system.md`:**
 ```markdown
@@ -575,7 +589,7 @@ Depends on: <slice-NNN, … or "none">
 **Step 3 — Present the slice list** as a table: id | title | phase | depends-on | size.
 Discuss ordering/granularity with the user; adjust slices on request.
 
-**Step 4 — Optional Jira sync.** Ask the user plainly: **"Хочешь занести слайсы в Jira?"**
+**Step 4 — Optional Jira sync.** Ask the user plainly: **"Want these slices pushed to Jira?"**
 - **No (default)** → skip. Slices live in `docs/plan/` and `lifecycle` reads them directly. Done.
 - **Yes** → verify Jira MCP (`mcp__atlassian__*`) is available; if not, say so and skip.
   Then, via Agent only (jira-ops patterns — never call MCP in main context):

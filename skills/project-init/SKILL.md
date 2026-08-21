@@ -153,7 +153,7 @@ a phase on a missing optional tool.
 
 | Dependency | Phase | If missing |
 |------------|-------|-----------|
-| `toxic-opinion` skill + Codex CLI | second opinion in every phase | offer `npm i -g @openai/codex`, else skip with note |
+| A second-opinion skill driving an external model (e.g. `toxic-opinion` + Codex CLI — not bundled) | second opinion in every phase | skip with a note in the phase output |
 | WebSearch | PRD market / legal research | skip, note in docs |
 | Jira MCP (`mcp__atlassian__*`) | DECOMPOSITION → optional Jira sync | user declines or MCP missing → skip Jira; slices stay in `docs/plan/` |
-| design-agents + interface-design / Vercel skills | ARCHITECTURE design system | skip the design-system substeps, note in docs |
+| Design agents + `interface-design` / Vercel / `frontend-design` skills (none bundled) | ARCHITECTURE design system | run the same steps via `general-purpose` agents, record the fallback in the docs |

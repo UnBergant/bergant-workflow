@@ -78,8 +78,8 @@ lifecycle on a missing optional tool.
 | Dependency | Step | If missing |
 |------------|------|-----------|
 | `jq` (required by the hooks) | compact/gate hooks | hooks no-op → gate enforcement is OFF; warn and suggest `brew install jq` |
-| `toxic-opinion` skill + Codex CLI | SCOPE second opinion | offer `npm i -g @openai/codex`, else skip with note |
-| `toxic-review` skill + Codex CLI | REVIEW | offer install once, else single review Agent only |
+| A second-opinion skill driving an external model (e.g. `toxic-opinion` + Codex CLI — not bundled) | SCOPE second opinion | skip with a note in the approved scope |
+| A dual-review skill (e.g. `toxic-review` — not bundled) | REVIEW | single in-house review Agent only, note which was used |
 | GitHub MCP (`mcp__github__*`) | CLOSE (PR create/merge) | offer to set up the MCP, else stop and let the user open/merge the PR manually |
 | Storybook | COMPONENTS | offer to add it, else skip the component-review substep |
-| design-agents (ui/ux/visual/brand) | COMPONENTS / design tasks | proceed without the design pass, note it |
+| Design agents (`ui-agent`/`ux-agent`/`visual-agent`/`brand-agent` — not bundled) | COMPONENTS / design tasks | proceed with a `general-purpose` agent for the design pass, note it |
