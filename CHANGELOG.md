@@ -4,13 +4,26 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] — 2026-08-27
 
 ### Changed
 - GitHub operations in `lifecycle` now go through the `gh` CLI first (`gh pr create`,
   `gh pr merge --squash --delete-branch`), with the GitHub MCP server as the fallback.
   Previously the skill mandated the MCP server and explicitly forbade `gh`, which stalled
   `CLOSE` whenever the MCP connection dropped.
+
+### Added
+- README — an ASCII diagram of both skills: the `project-init` phases with the artifact
+  each one writes, the slice handoff into `lifecycle`, and which steps are user gates
+  versus compact gates.
+- README — an install path for users with no SSH key on GitHub. The `owner/repo`
+  shorthand clones over SSH; the explicit HTTPS url and a local checkout both work as
+  marketplace sources instead.
+
+### Note
+- Installs made while `0.1.0` was current may hold a stale cache, because the plugin
+  cache is keyed by version and the `gh` CLI change shipped before this bump. Run
+  `claude plugin marketplace update bergant-workflow` to refresh.
 
 ## [0.1.0] — 2026-08-21
 
@@ -37,4 +50,5 @@ First public release.
   GitHub and Jira MCP, Storybook) are not bundled. Every step that uses one falls back
   to a documented in-house path instead of blocking.
 
+[0.2.0]: https://github.com/UnBergant/bergant-workflow/releases/tag/v0.2.0
 [0.1.0]: https://github.com/UnBergant/bergant-workflow/releases/tag/v0.1.0
