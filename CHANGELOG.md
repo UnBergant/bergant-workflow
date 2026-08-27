@@ -4,6 +4,14 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- GitHub operations in `lifecycle` now go through the `gh` CLI first (`gh pr create`,
+  `gh pr merge --squash --delete-branch`), with the GitHub MCP server as the fallback.
+  Previously the skill mandated the MCP server and explicitly forbade `gh`, which stalled
+  `CLOSE` whenever the MCP connection dropped.
+
 ## [0.1.0] — 2026-08-21
 
 First public release.

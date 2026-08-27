@@ -32,7 +32,9 @@ Critical rules:
 4. Always read state file before any action.
 5. Use Agent tool for heavy work (IMPLEMENT subtasks, REVIEW).
 6. Task context comes from local files in `docs/plan/slice-*.md` — do NOT use Jira MCP. Read the relevant slice file to understand task scope and dependencies.
-7. GitHub operations via MCP tools (mcp__github__*), not gh CLI.
+7. GitHub operations via the `gh` CLI (`gh pr create`, `gh pr merge`). Never use interactive
+   flags — pass `--title`/`--body` explicitly. If `gh` is missing or unauthenticated, fall back
+   to GitHub MCP (`mcp__github__*`).
 8. **Sync TaskList with step status.** When a step changes status in the state file, find the matching TaskList task by its `[STEP_NAME]` prefix and update it: `in_progress` when step starts, `completed` when step finishes. Use TaskList to find the task ID, then TaskUpdate to change status.
 9. When a task is completed, update its status in the corresponding `docs/plan/slice-*.md` file (change ⏳ to ✅).
 
@@ -80,6 +82,6 @@ lifecycle on a missing optional tool.
 | `jq` (required by the hooks) | compact/gate hooks | hooks no-op → gate enforcement is OFF; warn and suggest `brew install jq` |
 | A second-opinion skill driving an external model (e.g. `toxic-opinion` + Codex CLI — not bundled) | SCOPE second opinion | skip with a note in the approved scope |
 | A dual-review skill (e.g. `toxic-review` — not bundled) | REVIEW | single in-house review Agent only, note which was used |
-| GitHub MCP (`mcp__github__*`) | CLOSE (PR create/merge) | offer to set up the MCP, else stop and let the user open/merge the PR manually |
+| `gh` CLI (authenticated) | CLOSE (PR create/merge) | fall back to GitHub MCP (`mcp__github__*`); if neither is available, stop and let the user open/merge the PR manually |
 | Storybook | COMPONENTS | offer to add it, else skip the component-review substep |
 | Design agents (`ui-agent`/`ux-agent`/`visual-agent`/`brand-agent` — not bundled) | COMPONENTS / design tasks | proceed with a `general-purpose` agent for the design pass, note it |
