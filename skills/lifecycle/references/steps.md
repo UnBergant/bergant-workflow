@@ -119,11 +119,13 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Run final: `npm run build`, `npm run test`.
 - Commit remaining changes (if any).
 - Push branch to remote.
-- Create PR (use GitHub MCP `create_pull_request`, not gh CLI).
+- Create PR: `gh pr create --base <base> --title "..." --body "..."`. If `gh` is unavailable,
+  fall back to GitHub MCP `create_pull_request`.
 - **STOP.** Show PR link. Ask user to review.
 
 **On `/bergant-workflow:lifecycle complete CLOSE`:**
-1. Merge PR (use GitHub MCP `merge_pull_request`, not gh CLI). Delete remote branch.
+1. Merge PR: `gh pr merge <number> --squash --delete-branch`. If `gh` is unavailable, fall back
+   to GitHub MCP `merge_pull_request` and delete the remote branch.
 2. `git checkout master && git pull`.
 3. `git branch -d <branch>`.
 4. `rm .lifecycle-state.json`.

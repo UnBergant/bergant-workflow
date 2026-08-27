@@ -144,7 +144,7 @@ Nothing here hard-blocks the workflow.
 
 | Dependency | Used by | If absent |
 |------------|---------|-----------|
-| GitHub MCP server | `lifecycle` REVIEW / CLOSE (PR create & merge) | PR automation skipped, you open the PR yourself |
+| `gh` CLI (authenticated) | `lifecycle` REVIEW / CLOSE (PR create & merge) | falls back to the GitHub MCP server; without either, you open the PR yourself |
 | Storybook | `lifecycle` COMPONENTS | the component-review substep is skipped |
 | A second-opinion skill driving an external model | SCOPE and REVIEW cross-checks | in-house review agent only |
 | Design agents (`brand-agent`/`ux-agent`/`visual-agent`/`ui-agent`) | `project-init` design-system step | a `general-purpose` agent produces the same `BRIEF.md` with less specialization |
