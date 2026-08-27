@@ -93,6 +93,23 @@ Then, in a project:
 
 Commands are namespaced under `bergant-workflow:` after install.
 
+### No SSH key on GitHub?
+
+The `owner/repo` shorthand above is cloned over SSH. If you have no SSH key set up,
+that step fails — pass the HTTPS URL explicitly instead and everything else is identical:
+
+```
+/plugin marketplace add https://github.com/UnBergant/bergant-workflow.git
+/plugin install bergant-workflow@bergant-workflow
+```
+
+A local checkout works as a marketplace source too, if you would rather clone it yourself:
+
+```
+git clone https://github.com/UnBergant/bergant-workflow
+/plugin marketplace add ./bergant-workflow
+```
+
 To try it without installing:
 
 ```
