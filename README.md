@@ -32,6 +32,48 @@ compaction and Claude's own optimism.
 The two are meant to be used together: `project-init` breaks a spec into slices,
 then `lifecycle next` picks up the next unfinished slice and runs it through the full cycle.
 
+## The flow
+
+```
+                       docs/spec.md
+                             |
+   +========================v=================================+
+   |  project-init                        spec -> documents   |
+   +==========================================================+
+   |  INPUT_VALIDATION   [gate]  ->  docs/REQUIREMENTS.md     |
+   |  PRD                [gate]  ->  docs/prd.md              |
+   |  ARCHITECTURE       [gate]  ->  docs/architecture.md     |
+   |  PLANNING           [gate]  ->  docs/plan/phase-N.md     |
+   |  DECOMPOSITION      [gate]  ->  docs/plan/slice-NNN.md   |
+   |  FINALIZE           [auto]  ->  CLAUDE.md + .gitignore   |
+   +==========================================================+
+                             |
+                slice-001, slice-002, slice-003 ...
+                             |
+                             v
+              /bergant-workflow:lifecycle next
+                             |
+   +========================v=================================+
+   |  lifecycle                        one slice at a time    |
+   +==========================================================+
+   |  CONTEXT_CHECK     [cmpct]  branch + forced /compact     |
+   |  SCOPE             [gate]   scope read + second opinion  |
+   |  PLAN              [cmpct]  explore + component inventory|
+   |  COMPONENTS        [gate]   tokens, components, stories  |
+   |  IMPLEMENT                  subtasks by agents, build    |
+   |  VERIFY            [gate]   build, lint, manual test plan|
+   |  TEST                       Vitest unit + Playwright e2e |
+   |  REVIEW            [gate]   secret scan, commit, review  |
+   |  DOCUMENT                   MEMORY.md / CLAUDE.md update |
+   |  CLOSE             [gate]   PR create -> merge -> clean  |
+   +==========================================================+
+                             |
+                             +-----> next slice (repeat)
+
+   [gate]   user gate    - Stop hook blocks until `complete <step>`
+   [cmpct]  compact gate - PreToolUse(Agent) hook blocks until `/compact`
+```
+
 ## Install
 
 This repo doubles as a plugin marketplace, so it installs straight from git:
