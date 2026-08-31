@@ -143,6 +143,8 @@ runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-ru
    +========================v=================================+
    |  lifecycle                        one slice at a time    |
    +==========================================================+
+   |  ADOPT             [gate]   once per project: reads how   |
+   |                             it builds, asks, then writes |
    |  CONTEXT_CHECK     [cmpct]  branch + forced /compact     |
    |  SCOPE             [gate]   scope read + second opinion  |
    |  PLAN              [cmpct]  explore + component inventory|
