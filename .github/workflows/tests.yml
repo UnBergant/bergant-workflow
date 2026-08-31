@@ -58,11 +58,15 @@ jobs:
         # here, where Windows would otherwise translate on checkout.
         run: |
           fail=0
-          for f in hooks/*.sh tests/*.sh; do
+          for f in hooks/*.sh scripts/*.sh tests/*.sh; do
             if ! tr -d '\r' < "$f" | cmp -s - "$f"; then echo "CRLF found in $f"; fail=1; fi
           done
           [ "$fail" -eq 0 ] && echo "all shell scripts are LF"
           exit $fail
 
       - name: hook behaviour
-        run: bash tests/hooks.test.sh
+        run: |
+          # Printed so the bash-3.2 claim in the README can be checked against reality rather
+          # than assumed: on macOS runners this is what the suite and the hooks run under.
+          bash --version | head -1
+          bash tests/hooks.test.sh
