@@ -20,7 +20,8 @@ This skill's directory (its reference files live here) — resolved at runtime: 
 ```
 Read these files in order:
 1. SKILL_DIR/references/state-schema.md — state file structure
-2. SKILL_DIR/references/steps.md — find the section for the CURRENT step only
+2. SKILL_DIR/references/project-config.md — the project's commands and plan location
+3. SKILL_DIR/references/steps.md — find the section for the CURRENT step only
 
 Execute lifecycle command: $ARGUMENTS
 State file: .lifecycle-state.json
@@ -31,15 +32,18 @@ Critical rules:
 3. Always update state file after every transition.
 4. Always read state file before any action.
 5. Use Agent tool for heavy work (IMPLEMENT subtasks, REVIEW).
-6. Task context comes from local files in `docs/plan/slice-*.md` — do NOT use Jira MCP. Read the relevant slice file to understand task scope and dependencies.
+6. Task context comes from the plan files named by `planGlob` in `.bergant-workflow.json` (default `docs/plan/slice-*.md`) — do NOT use Jira MCP. Read the relevant plan file to understand task scope and dependencies. If `planGlob` is `null`, the project has no plan documents and the scope comes from what the user described at `start`; SCOPE is then the gate that pins it down.
 7. GitHub operations via the `gh` CLI (`gh pr create`, `gh pr merge`). Never use interactive
    flags — pass `--title`/`--body` explicitly. If `gh` is missing or unauthenticated, fall back
    to GitHub MCP (`mcp__github__*`).
-8. **Never mutate Git beyond what the current step prescribes.** No `stash`, no `checkout -f`,
+8. **Never assume the toolchain.** Build, lint and test commands come from `commands` in
+   `.bergant-workflow.json`. A command recorded as `null` means the project has none — say so
+   and move on. Never fall back to `npm run <anything>` on a project that never asked for it.
+9. **Never mutate Git beyond what the current step prescribes.** No `stash`, no `checkout -f`,
    no `clean`, no `add -A`, no `branch -D`, no force push. If the tree is not what the step
    expects, stop and ask.
-9. When a task is completed, tick its checkbox in the corresponding `docs/plan/slice-*.md` file.
-10. **Live checklist, if the session has one.** If a checklist tool such as `TodoWrite` is
+10. When a task is completed, tick its checkbox in the corresponding `docs/plan/slice-*.md` file.
+11. **Live checklist, if the session has one.** If a checklist tool such as `TodoWrite` is
     available, mirror the step statuses into it so progress renders in the UI. It is a mirror,
     never the record — `.lifecycle-state.json` is the record, and `status` reads from it. Some
     builds do not expose the tool at all; when it is missing, skip this silently.
@@ -69,6 +73,7 @@ Display a formatted table:
 | `start <task>` | Git preflight, then initialize state with `awaitingCompact: true`. Supports `--skip-scope`. |
 | `advance` | Move to next step (validates current is completed, respects gates). |
 | `complete <step>` | User confirms a gate. Marks step completed, advances. |
+| `adopt` | Learn an existing project: detect its build/lint/test commands and any plan it already has, confirm both with the user, write `.bergant-workflow.json`. Runs automatically on the first `start` when that file is missing. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |
 | `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. |
 | `next` | Read `docs/plan/slice-*.md` files, find first ⏳ task in the lowest incomplete slice, run `start` on it. |

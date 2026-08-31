@@ -2,6 +2,28 @@
 
 Read only the section for the current step. Do not load the entire file into context.
 
+## ADOPT (runs once per project, before CONTEXT_CHECK)
+
+Skip entirely if `.bergant-workflow.json` already exists. Otherwise the project has never been
+through this plugin, and guessing how it builds and where its plan lives is how a tool wrecks
+someone's repository. Look first, then ask once.
+
+1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project.sh"`. It prints JSON and never fails.
+2. **Plan documents**, in order:
+   - `nativePlan: true` → use `docs/plan/slice-*.md`, say so, ask nothing.
+   - exactly one candidate → propose it: "Is `<path>` the plan I should work from?"
+   - several → list them and ask which, or none.
+   - none → say that plainly and offer to work from task descriptions instead.
+   In every branch the user may answer "no plan" — that is a normal project, not a broken one.
+3. **Commands**: show what was detected (`build`, `lint`, `test`, `e2e`) and what came back
+   empty. Ask the user to correct or fill them. Never invent one: a project with no lint
+   command has no lint command, and `VERIFY` will skip that check and say it skipped it.
+4. Write `.bergant-workflow.json` at the project root and **commit it** — it describes the
+   project, not the run, and the next person benefits from it. Then continue to CONTEXT_CHECK.
+
+**STOP HERE** until the user has confirmed both halves. This is a user gate in everything but
+name: everything the lifecycle later runs against their code comes from these two answers.
+
 ## CONTEXT_CHECK
 
 - Exists solely to enforce context cleanup before real work begins.
@@ -85,22 +107,22 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
   - Update subtask status to `in_progress`.
   - Launch Agent(general-purpose) with focused instructions.
   - On return: update subtask to `completed`.
-- When all done: `npm run build` + `npm run lint`.
+- When all done: run `commands.build` and `commands.lint` from `.bergant-workflow.json`. A `null` command is skipped, and the skip is reported.
 - If pass: mark IMPLEMENT completed, advance.
 - If fail: fix, re-check.
 
 ## VERIFY (gate: user)
 
-- Run: `npm run build`, `npm run lint`.
+- Run `commands.build` and `commands.lint`. Report any that are `null` as not configured rather than substituting something.
 - Display test plan: task-specific manual checks (user-facing checklist, not developer checklist).
 - **STOP HERE.** `When done: /bergant-workflow:lifecycle complete VERIFY`
 - Do NOT proceed further.
 
 ## TEST
 
-- Write unit tests (Vitest) for new business logic.
-- Write E2E tests (Playwright) if UI changed.
-- Run `npm run test` (and `npm run test:e2e` if applicable).
+- Write unit tests for new business logic, in whatever the project already uses — infer the framework from existing tests, never introduce a new one inside a slice.
+- Write E2E tests if UI changed and the project has an E2E setup.
+- Run `commands.test` (and `commands.e2e` if the slice touched UI and one is configured).
 - Mark TEST completed, advance.
 
 **Skip condition:** If the slice added no business logic and touched no UI — docs, config,
@@ -145,7 +167,7 @@ empty `skipReason` means tests were dropped, not waived.
 ## CLOSE (gate: user)
 
 **Phase 1 — Create PR:**
-- Run final: `npm run build`, `npm run test`.
+- Run final: `commands.build`, `commands.test`.
 - Commit remaining changes (if any).
 - Push branch to remote.
 - Create PR: `gh pr create --base <base> --title "..." --body "..."`. If `gh` is unavailable,

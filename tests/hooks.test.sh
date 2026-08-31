@@ -200,6 +200,65 @@ if [ -z "$out" ]; then echo "ok   broken jq, no lifecycle -> silent"; PASS=$((PA
 else echo "FAIL no jq without lifecycle -> got: $out"; FAIL=$((FAIL+1)); fi
 
 echo
+echo "# project detection"
+SCRIPTS="$(cd "$HOOKS/../scripts" && pwd)"
+
+# detect <fixture-name> <jq-filter> <expected>
+detect() {
+  local name="$1" filter="$2" want="$3" got
+  got=$(bash "$SCRIPTS/detect-project.sh" "$WORK/fx/$name" | jq -r "$filter" 2>/dev/null)
+  if [ "$got" = "$want" ]; then
+    echo "ok   $name -> $filter = $want"; PASS=$((PASS+1))
+  else
+    echo "FAIL $name -> $filter = ${got:-<empty>}, wanted $want"; FAIL=$((FAIL+1))
+  fi
+}
+
+mkdir -p "$WORK/fx/node" "$WORK/fx/go" "$WORK/fx/py" "$WORK/fx/mk" "$WORK/fx/pymk" \
+         "$WORK/fx/native/docs/plan" "$WORK/fx/loose/docs" "$WORK/fx/empty"
+
+printf '{"scripts":{"build":"vite build","lint":"biome check","test":"vitest","test:e2e":"playwright test"}}' \
+  > "$WORK/fx/node/package.json"
+touch "$WORK/fx/node/pnpm-lock.yaml"
+detect node '.stack' node
+detect node '.packageManager' pnpm
+detect node '.commands.build' "pnpm run build"
+detect node '.commands.e2e' "pnpm run test:e2e"
+
+printf 'module x\n' > "$WORK/fx/go/go.mod"
+detect go '.stack' go
+detect go '.commands.test' "go test ./..."
+
+printf '[project]\nname = "x"\n' > "$WORK/fx/py/pyproject.toml"
+touch "$WORK/fx/py/conftest.py"
+detect py '.stack' python
+detect py '.commands.test' pytest
+
+printf 'build:\n\techo b\ntest:\n\techo t\n' > "$WORK/fx/mk/Makefile"
+detect mk '.stack' make
+detect mk '.commands.build' "make build"
+
+# A Python project that drives everything through make: the make targets must still be found.
+printf '[project]\nname = "x"\n' > "$WORK/fx/pymk/pyproject.toml"
+printf 'build:\n\techo b\n' > "$WORK/fx/pymk/Makefile"
+detect pymk '.stack' python
+detect pymk '.commands.build' "make build"
+
+touch "$WORK/fx/native/docs/plan/slice-001-a.md" "$WORK/fx/native/docs/plan/slice-002-b.md"
+detect native '.nativePlan' true
+detect native '.planCandidates | length' 2
+
+printf '# plan\n' > "$WORK/fx/loose/PLAN.md"
+printf '# readme\n' > "$WORK/fx/loose/docs/README.md"
+detect loose '.nativePlan' false
+detect loose '.planCandidates | length' 1
+detect loose '.planCandidates[0].path' PLAN.md
+
+detect empty '.stack' unknown
+detect empty '.commands.test' null
+detect empty '.planCandidates | length' 0
+
+echo
 echo "# hooks.json wiring"
 cat > "$WORK/wiring.py" <<'PYW'
 import json, sys
