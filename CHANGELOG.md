@@ -4,6 +4,16 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] — 2026-08-31
+
+### Fixed
+- **`start` set the compact flag before adoption could run.** Two live runs of the same command
+  ordered themselves differently: one adopted first and asked its questions immediately, the
+  other wrote `awaitingCompact: true` first — which blocks the very agent ADOPT needs — and
+  deferred adoption until after the compact. Both readings fitted the instructions, which is
+  the defect. The order is now stated as a sequence in both the skill and the step: preflight,
+  adoption, branch, then the flag.
+
 ## [0.12.0] — 2026-08-31
 
 ### Added
