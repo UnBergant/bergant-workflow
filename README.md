@@ -201,9 +201,9 @@ file fetch. `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` stops both.
   Without it the hooks silently no-op, which means gate enforcement is off and you get the
   skills without the guarantees.
 
-Both failure modes are quiet: a hook that cannot run is a hook that does not block, so you get
-the skills and none of the guarantees. If you are unsure, start a lifecycle and try to skip a
-gate — you should be stopped.
+A missing `jq` fails quietly: the scripts still run, every read comes back empty, and the hooks
+allow everything — you get the skills and none of the guarantees. If you are unsure, start a
+lifecycle and try to skip a gate; you should be stopped.
 
 **Platform.** Developed and tested on macOS; Linux uses the same tools. Windows is *not*
 tested — the scripts avoid GNU-only syntax and the repo pins LF line endings so a Git Bash

@@ -8,10 +8,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - `.gitattributes` pins `*.sh` to LF. The marketplace source is a git clone, so a Windows user
-  with Git's default `core.autocrlf=true` got CRLF hook scripts, and bash rejects those on the
-  shebang line with `$'\r': command not found`. Every hook died silently — no gate enforcement,
-  no error, present since 0.1.0. Existing clones pick this up on a fresh
-  `claude plugin marketplace update`.
+  with Git's default `core.autocrlf=true` got CRLF hook scripts, and bash aborts on those with
+  `$'\r': command not found` followed by a syntax error — exiting **2**, which for these hooks
+  means *block*. The result was not a plugin without enforcement but a plugin that could not be
+  used: the `Stop` hook refused to end any turn (its `stop_hook_active` guard never got to run)
+  and the compact gate refused every agent launch, both citing a bash syntax error. Present
+  since 0.1.0. Existing clones pick the fix up on a fresh `claude plugin marketplace update`.
 
 ### Added
 - README lists `bash` as a required dependency and states plainly that Windows is untested.
