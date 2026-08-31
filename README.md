@@ -132,9 +132,11 @@ Restart Claude Code afterwards. `/plugin` does the same from inside a session.
 
 So that a stale install is noticeable at all, the compact gate that opens every lifecycle
 carries a one-line notice when a newer version exists. It compares the version in your
-`plugin.json` against the marketplace clone on disk and the published manifest on `main`, and
-prints the two commands above. It runs at most once a day, times out after three seconds, and
-goes quiet on any failure — no network, no `jq`, no `curl`, nothing to report. Opt out with:
+`plugin.json` against two sources — the marketplace clone on disk, which is only as fresh as
+your last `marketplace update`, and this project's `plugin.json` on `main`, which is served
+through a CDN and can lag a release by a few minutes — then prints the two commands above. It
+runs at most once a day, times out after three seconds, and goes quiet on any failure: no
+network, no `jq`, no `curl`, nothing to report. Opt out with:
 
 ```
 export BERGANT_WORKFLOW_NO_UPDATE_CHECK=1
