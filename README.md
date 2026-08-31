@@ -41,6 +41,23 @@ If your fork touches the hooks, run `bash tests/hooks.test.sh` (the suite behind
 allows everything, and with CRLF line endings it blocks everything. On macOS run it once with
 `/bin/bash`, which is 3.2 — that is what CI uses, and it parses differently from Homebrew's.
 
+## Which skill do I run?
+
+Two skills, and they are not alternatives: `project-init` turns a specification into plan
+documents, `lifecycle` executes one slice of a plan through to a merged PR. Most confusion is
+about whether you need the first one at all — usually you do not.
+
+| You have | Run | Why |
+|----------|-----|-----|
+| A spec and an empty repository | `project-init start docs/spec.md`, then `lifecycle next` | The full path: requirements → PRD → architecture → plan → slices, five user gates on the way |
+| An existing project and a concrete task | `lifecycle start <task>` — nothing else | Adoption runs first and learns the project. `project-init` would write a PRD and an architecture document for a codebase that already has both, in code |
+| An existing project and a large new feature to think through | `project-init start <spec> --from PLANNING`, then `lifecycle next` | `--from` enters at a later phase, so the phases whose answers already exist are skipped. Phases: `INPUT_VALIDATION` → `PRD` → `ARCHITECTURE` → `PLANNING` → `DECOMPOSITION` → `FINALIZE` |
+| An existing project and its own plan format | `lifecycle start <task>` | Adoption records where your plan lives in `planGlob`; the slice format is not required |
+| A task you can describe in two sentences | `lifecycle start <task>` | No plan document needed. SCOPE is the gate where you pin down what it means |
+
+The rule of thumb: **`project-init` is for deciding what to build, `lifecycle` is for building
+one thing safely.** Reach for the first only when the deciding has not happened yet.
+
 ## Using it on an existing project
 
 Most projects that install this already exist, so the first `lifecycle start` in a repository
@@ -365,7 +382,7 @@ Delete any leftover `.lifecycle-state.json` if a lifecycle was interrupted befor
 
 ## Author
 
-Igor Druzhinin — [LinkedIn](https://www.linkedin.com/in/igor-druzhinin/)
+Igor Druzhinin — [LinkedIn](https://www.linkedin.com/in/igor-druzhinin/) · [Telegram](https://t.me/edwardgrolsh)
 
 ## License
 

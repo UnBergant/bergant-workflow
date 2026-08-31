@@ -9,6 +9,11 @@ argument-hint: "[start <spec-file> [--from <phase>]|status|complete <phase>|reco
 
 # Project Init
 
+Turns a specification into plan documents. On a repository that already exists, most tasks do
+not need this at all — `lifecycle` adopts the project and runs without a plan document. Reach
+for `project-init` when the deciding has not happened yet, and use `--from <phase>` to skip the
+phases whose answers the project already has.
+
 ## Routing
 
 **`status` (or no arguments):** execute INLINE — read `docs/spec-state.json` and display the phase table. Do NOT launch an agent. See "Status Display" below.
