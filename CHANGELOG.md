@@ -4,6 +4,27 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] — 2026-08-31
+
+### Added
+- **`project-init start` works out where to enter and recommends it.** `--from <phase>` already
+  existed, but it only did anything if the user passed it and knew the phase names — so on a
+  repository that already had requirements, a PRD or an architecture document, the default was
+  to walk the whole sequence and write documents that argue with the ones already there. `start`
+  now reads the project first and says what it found: which artifacts exist, whether there is
+  source code, and which phase to enter at. It recommends and the user confirms — a phase is
+  never skipped silently, because a plan resting on a PRD nobody wrote is worse than a slow one.
+- When a repository has code but no documents, `project-init` says plainly that for a single
+  task it is the wrong tool and points at `lifecycle start`, which adopts the project and needs
+  no plan document.
+- `detect-project.sh` reports `docs` (requirements, prd, architecture, designSystem),
+  `hasSourceCode` and `suggestedEntryPhase`.
+
+### Changed
+- README gained a **Which skill do I run?** table. Two skills shipped with nothing saying how
+  they relate, and the obvious reading — that every project goes through both — is wrong for
+  most existing repositories. Both skills now also open by saying when they apply.
+
 ## [0.8.0] — 2026-08-31
 
 ### Added
