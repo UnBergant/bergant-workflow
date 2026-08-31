@@ -117,6 +117,29 @@ git clone https://github.com/UnBergant/bergant-workflow
 claude --plugin-dir ./bergant-workflow
 ```
 
+## Update
+
+Plugins do not update themselves, and the cache is keyed by version — an install stays on
+whatever version it was made with until you say so:
+
+```
+claude plugin marketplace update bergant-workflow   # refresh the marketplace listing
+claude plugin update bergant-workflow               # install the new version
+```
+
+Both steps matter: the first only refreshes metadata, the second is what swaps the version.
+Restart Claude Code afterwards. `/plugin` does the same from inside a session.
+
+So that a stale install is noticeable at all, the compact gate that opens every lifecycle
+carries a one-line notice when a newer version exists. It compares the version in your
+`plugin.json` against the marketplace clone on disk and the published manifest on `main`, and
+prints the two commands above. It runs at most once a day, times out after three seconds, and
+goes quiet on any failure — no network, no `jq`, no `curl`, nothing to report. Opt out with:
+
+```
+export BERGANT_WORKFLOW_NO_UPDATE_CHECK=1
+```
+
 ## How the enforcement works
 
 The `lifecycle` skill keeps its state in `.lifecycle-state.json` at the project root. Three
@@ -128,6 +151,9 @@ write that file:
 | `check-compact-gate.sh` | `PreToolUse(Agent)` | Blocks agent launches while `awaitingCompact: true` — forces a `/compact` before the heavy steps |
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
 | `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
+
+`check-plugin-update.sh` sits next to them but is not wired into `hooks.json` — it is a helper
+the compact gate calls to print the update notice described under [Update](#update).
 
 The `Stop` hook is the one that matters. It walks the ten steps in order, finds the first one
 that is not `completed`, and blocks if anything after it has already started:
@@ -156,6 +182,11 @@ Worth knowing before you install something that ships hooks:
 
 The hooks only ever touch `.lifecycle-state.json`, and they no-op entirely when that file
 does not exist — so with no active lifecycle, the plugin is inert.
+
+Two things live outside the repo, both from the update check: a throttle stamp in `$TMPDIR`
+holding a unix timestamp, and one daily `GET` of this project's `plugin.json` from
+`raw.githubusercontent.com`. Nothing about your code, project or usage is sent — it is a plain
+file fetch. `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` stops both.
 
 ## Requirements
 
@@ -193,6 +224,7 @@ bergant-workflow/
 │   └── lifecycle/
 ├── hooks/
 │   ├── hooks.json
+│   ├── check-plugin-update.sh
 │   ├── check-compact-gate.sh
 │   ├── inject-lifecycle-state.sh
 │   └── check-lifecycle-gate.sh
