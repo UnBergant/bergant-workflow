@@ -1,0 +1,7 @@
+# The hooks are executed as `bash <script>`. With CRLF, bash fails on the shebang line with
+# `$'\r': command not found` and every string comparison picks up a trailing \r — so the whole
+# enforcement layer dies silently on a Windows clone made with the default core.autocrlf=true.
+# These files must be LF on disk regardless of who clones them.
+*.sh text eol=lf
+*.json text eol=lf
+*.md text eol=lf

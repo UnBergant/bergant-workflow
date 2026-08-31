@@ -4,6 +4,18 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] — 2026-08-31
+
+### Fixed
+- `.gitattributes` pins `*.sh` to LF. The marketplace source is a git clone, so a Windows user
+  with Git's default `core.autocrlf=true` got CRLF hook scripts, and bash rejects those on the
+  shebang line with `$'\r': command not found`. Every hook died silently — no gate enforcement,
+  no error, present since 0.1.0. Existing clones pick this up on a fresh
+  `claude plugin marketplace update`.
+
+### Added
+- README lists `bash` as a required dependency and states plainly that Windows is untested.
+
 ## [0.4.0] — 2026-08-31
 
 ### Added
