@@ -20,7 +20,9 @@
 # so a missing dependency turns enforcement off. That used to happen in silence, which is the
 # worst version of it: the skills still run and look like they are being enforced. Say it out
 # loud, but only when a lifecycle is actually active, and never block on it.
-if ! command -v jq >/dev/null 2>&1; then
+# Probe that jq actually runs, rather than that a file by that name exists on PATH: a broken
+# or half-installed jq disables enforcement exactly as thoroughly as a missing one.
+if ! jq --version >/dev/null 2>&1; then
   if find_state_file >/dev/null; then
     if [ "$1" = "--text" ]; then
       echo "DEPENDENCY MISSING: jq is not installed, so the lifecycle hooks cannot read the state file and every gate is currently unenforced. Tell the user to install jq (brew install jq)."

@@ -161,24 +161,25 @@ fi
 rm -f "$WORK/repo/.lifecycle-state.json"
 
 echo
-echo "# missing jq is audible"
+echo "# unusable jq is audible"
+# Simulate an unusable jq by shadowing it with a failing one at the front of PATH. Stripping
+# PATH instead would break the shell itself on Windows, where Git Bash needs /usr/bin to run.
 NOJQ="$WORK/nojq-bin"
 mkdir -p "$NOJQ"
-for b in bash sh dirname date head tail sort printf cat basename grep sed rm mkdir env curl; do
-  src=$(command -v "$b" 2>/dev/null) && ln -sf "$src" "$NOJQ/$b"
-done
+printf '#!/bin/sh\nexit 1\n' > "$NOJQ/jq"
+chmod +x "$NOJQ/jq"
 state CONTEXT_CHECK=in_progress
 mkdir -p "$WORK/t4"
-out=$(PATH="$NOJQ" TMPDIR="$WORK/t4" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+out=$(PATH="$NOJQ:$PATH" TMPDIR="$WORK/t4" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 case "$out" in
-  *"NOT being enforced"*) echo "ok   no jq + active lifecycle -> warns the user"; PASS=$((PASS+1)) ;;
+  *"NOT being enforced"*) echo "ok   broken jq + active lifecycle -> warns the user"; PASS=$((PASS+1)) ;;
   *) echo "FAIL no jq warning -> got: ${out:-<empty>}"; FAIL=$((FAIL+1)) ;;
 esac
 
 rm -f .lifecycle-state.json
 mkdir -p "$WORK/t5"
-out=$(PATH="$NOJQ" TMPDIR="$WORK/t5" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
-if [ -z "$out" ]; then echo "ok   no jq, no lifecycle -> silent"; PASS=$((PASS+1))
+out=$(PATH="$NOJQ:$PATH" TMPDIR="$WORK/t5" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+if [ -z "$out" ]; then echo "ok   broken jq, no lifecycle -> silent"; PASS=$((PASS+1))
 else echo "FAIL no jq without lifecycle -> got: $out"; FAIL=$((FAIL+1)); fi
 
 echo
