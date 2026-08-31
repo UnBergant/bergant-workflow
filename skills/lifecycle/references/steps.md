@@ -90,7 +90,11 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 ## CONTEXT_CHECK
 
 - Exists solely to enforce context cleanup before real work begins.
-- On `start`: state file created with `awaitingCompact: true`. PreToolUse(Agent) hook blocks agent launches.
+- **Order on `start`, and it is not negotiable:** git preflight → ADOPT (if the project has not
+  been adopted) → create the branch → write the state file with `awaitingCompact: true`.
+  Setting the flag earlier blocks the agent that would have run ADOPT, so adoption lands after
+  the compact instead of before the work — two runs of the same command then ask their questions
+  in different orders. Adoption is a read plus one question; it belongs before the flag.
 - **Git preflight — run before touching anything.** Never assume the branch name, never move
   someone else's work:
   1. Find the real default branch, do not assume `master`:
