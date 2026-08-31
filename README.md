@@ -439,6 +439,18 @@ Delete any leftover `.lifecycle-state.json` if a lifecycle was interrupted befor
 `.bergant-workflow.json` records your project's own commands — it is harmless to keep, and
 worth keeping if you might reinstall.
 
+## Prior art
+
+The shape of this owes a debt to [get-shit-done](https://github.com/glittercowboy/get-shit-done):
+a staged workflow, requirements and roadmap kept as files in the repository, and a written state
+that survives a session ending. Those ideas are not mine.
+
+Where this one goes its own way is enforcement. GSD, like most workflows of this kind, is
+instructions — a very good set of them — and instructions are advice a model can drift past.
+Here the sequence lives in `.lifecycle-state.json` and three hooks read it from the harness, so
+skipping a step is refused rather than discouraged. Everything below that layer is still prose,
+and the README says so under [What the hooks do not enforce](#what-the-hooks-do-not-enforce).
+
 ## Author
 
 Igor Druzhinin — [LinkedIn](https://www.linkedin.com/in/igor-druzhinin/) · [Telegram](https://t.me/edwardgrolsh)
