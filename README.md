@@ -76,8 +76,22 @@ commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `p
 and any file that looks like an existing plan. Then it asks you to confirm both halves once,
 and writes `.bergant-workflow.json`, which is committed with the project.
 
-Two things it will not do. It will not invent a command: a repository with no lint script has
-no lint step, and `VERIFY` says it skipped rather than running something that was never set up.
+**If the project has no tests, it offers to add them.** That is the common case, and working out
+how to start testing is a large part of what this is for — so adoption names a runner that fits
+the stack (Vitest, pytest, `go test`, `cargo test`) and asks. It recommends
+yes, and says what that costs — one dev dependency and a config file — because the person
+reading may not know the runner. Say yes and the first slice that needs tests installs it, in
+that branch, through the same review as everything else.
+
+Say "not now" and it asks once more, at the first slice that actually adds logic, where the
+cost of having no tests is concrete instead of hypothetical. Say no there and it stops for
+good. What it will not do is install anything without you saying so, or pick a version from
+memory — a single reflexive "no" should not switch testing off forever, and neither should
+silence.
+
+Two other things it will not do. It will not invent a command: a repository with no lint script
+has no lint step, and `VERIFY` says it skipped rather than running something that was never set
+up.
 And it will not decide what your plan is — if there is one obvious candidate it proposes it, if
 there are several it lists them, and "there is no plan, take the scope from what I tell you" is
 a normal answer. Slices are how it prefers to work, not a precondition.

@@ -69,6 +69,37 @@ if [ -f Makefile ]; then
   [ -z "$E2E" ]   && E2E=$(target e2e)
 fi
 
+# When a project has no test command, "none configured" is a bad answer to stop at: most
+# repositories have no tests, and not having to work out how to add them is the point. So the
+# stack decides what to recommend. No versions are named here — the runner is named, pinning is
+# left to the project's own package manager at install time.
+SUGGEST_TEST=""; SUGGEST_E2E=""; SUGGEST_INSTALL=""
+HAS_UI=false
+if [ "$STACK" = "node" ] && have jq; then
+  if jq -e '((.dependencies // {}) + (.devDependencies // {}))
+            | keys | any(test("^(react|vue|svelte|next|nuxt|@angular/core|solid-js)$"))' \
+        package.json >/dev/null 2>&1; then
+    HAS_UI=true
+  fi
+fi
+
+if [ -z "$TEST" ]; then
+  case "$STACK" in
+    node)
+      SUGGEST_TEST="vitest"
+      SUGGEST_INSTALL="$PM add -D vitest"
+      [ "$PM" = "npm" ] && SUGGEST_INSTALL="npm install -D vitest"
+      [ "$HAS_UI" = "true" ] && SUGGEST_E2E="playwright"
+      ;;
+    python)
+      SUGGEST_TEST="pytest"
+      SUGGEST_INSTALL="pip install pytest"
+      ;;
+    go)   SUGGEST_TEST="go test"; SUGGEST_INSTALL="" ;;
+    rust) SUGGEST_TEST="cargo test"; SUGGEST_INSTALL="" ;;
+  esac
+fi
+
 # Documents an earlier project-init run (or a human) already produced. Their presence is what
 # decides where a new run should enter, so it is reported rather than left to be guessed at.
 doc() { [ -f "$1" ] && echo true || echo false; }
@@ -135,7 +166,8 @@ if have jq; then
   printf '%s' "$CANDIDATES" | jq -s --arg stack "$STACK" --arg pm "$PM" \
     --arg build "$BUILD" --arg lint "$LINT" --arg test "$TEST" --arg e2e "$E2E" \
     --arg native "$NATIVE" --arg req "$HAS_REQ" --arg prd "$HAS_PRD" --arg arch "$HAS_ARCH" \
-    --arg ds "$HAS_DS" --arg code "$HAS_CODE" --arg entry "$ENTRY" '
+    --arg ds "$HAS_DS" --arg code "$HAS_CODE" --arg entry "$ENTRY" \
+    --arg st "$SUGGEST_TEST" --arg se "$SUGGEST_E2E" --arg si "$SUGGEST_INSTALL" --arg ui "$HAS_UI" '
     def nn: if . == "" then null else . end;
     {
       stack: $stack,
@@ -146,7 +178,10 @@ if have jq; then
       docs: { requirements: ($req == "true"), prd: ($prd == "true"),
               architecture: ($arch == "true"), designSystem: ($ds == "true") },
       hasSourceCode: ($code == "true"),
-      suggestedEntryPhase: $entry
+      suggestedEntryPhase: $entry,
+      hasUI: ($ui == "true"),
+      testSetup: (if $st == "" then null else
+        { runner: $st, e2e: ($se|nn), install: ($si|nn) } end)
     }'
 else
   echo '{"stack":"unknown","packageManager":null,"commands":{},"planCandidates":[],"nativePlan":false,"docs":{},"hasSourceCode":false,"suggestedEntryPhase":"INPUT_VALIDATION","note":"jq unavailable"}'

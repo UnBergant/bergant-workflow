@@ -25,6 +25,28 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 3. **Commands**: show what was detected (`build`, `lint`, `test`, `e2e`) and what came back
    empty. Ask the user to correct or fill them. Never invent one: a project with no lint
    command has no lint command, and `VERIFY` will skip that check and say it skipped it.
+   - **No test command is the common case, not an edge case.** Most repositories have no tests
+     at all, and not having to work out how to add them is a large part of why this exists. So
+     do not record `null` and move on — make the offer, using `testSetup` from the detection
+     output, which names a runner that fits the stack.
+
+     **Recommend, with the reason, in plain words.** The person reading may not know what the
+     runner is or why they would want one, so say what it costs and what it buys:
+     > "This project has no test command, so the TEST step would have nothing to run and every
+     > slice would ship unverified. I'd suggest `<runner>` — it's what this stack normally uses.
+     > It adds one dev dependency and a config file, and it goes in on the first slice that
+     > needs it, in that branch, through the same review as the code. **My recommendation: yes.**
+     > You can also give me the command you already use, or say not now."
+
+     Record the answer:
+     - accepted → `"testSetupAccepted": "<runner>"`
+     - they gave their own → put it straight in `commands.test`
+     - "not now" → `"testSetupDeclined": "once"`
+     - "never ask again" → `"testSetupDeclined": "always"`
+     - no answer at all → record nothing. Silence is not a decline; the offer stands.
+
+     **Never install anything at this point.** Adoption's job is to ask, and an install belongs
+     in a branch, not in the step that reads the repository.
    - **Empty repository?** If every command is `null` and there is no manifest yet — the
      `project-init` path, where the code does not exist yet — say so, record what you have, and
      set `"adoptedFrom": "empty"`. The first later step that finds a manifest re-runs ADOPT
@@ -152,6 +174,20 @@ may close on its own, and only for this reason — say out loud that it was skip
 - Write E2E tests if UI changed and the project has an E2E setup.
 - Run `commands.test` (and `commands.e2e` if the slice touched UI and one is configured).
 - Mark TEST completed, advance.
+
+**No test runner yet?** Check `.bergant-workflow.json` before deciding there is nothing to run:
+- `commands.test` set → use it.
+- `testSetupAccepted` set → this is the slice that sets it up. Install the runner with the
+  project's own package manager, add the minimal config it needs, write the tests for this
+  slice, run them. Record the resulting command in `commands.test` so no later slice repeats
+  this. Do not pin a version from memory — let the package manager resolve it.
+- `testSetupDeclined: "once"` → **ask again here, and only here**: this is the first slice that
+  actually added logic, so the cost of having no tests is concrete rather than hypothetical.
+  Show what this slice would have been covered by. If they decline a second time, write
+  `"testSetupDeclined": "always"` and stop asking for good.
+- `testSetupDeclined: "always"` → skip, record
+  `skipReason: "test setup declined"`, and never raise it again.
+- None of the above → adoption never ran properly; run ADOPT.
 
 **Skip condition:** If the slice added no business logic and touched no UI — docs, config,
 or a pure refactor already covered by existing tests — auto-complete TEST and write the

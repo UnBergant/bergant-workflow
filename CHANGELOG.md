@@ -4,6 +4,54 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] — 2026-08-31
+
+### Added
+- **A project with no tests gets an offer, not a shrug.** Removing the hardcoded Vitest and
+  Playwright in 0.8.0 made the plugin stack-agnostic and quietly dropped one of its reasons to
+  exist: most repositories have no tests, and not having to work out how to start is much of
+  the value. Adoption now names a runner that fits the stack — Vitest, pytest, `go test`,
+  `cargo test` — explains what it costs and what it buys, and **recommends yes**. Nothing is
+  installed at adoption: the setup lands in the first slice that needs it, in that branch,
+  through the same review as the code.
+- "Not now" is not "never". A decline is recorded as `once` and the offer returns a single
+  time, at the first slice that actually adds logic — where the cost of having no tests is
+  concrete. A second decline is remembered for good. Silence records nothing at all, because a
+  reflexive no and an unanswered question are not the same answer.
+- `detect-project.sh` reports `testSetup` (runner, e2e runner, install command) and `hasUI`. No
+  versions are named: pinning is left to the project's own package manager.
+
+### Fixed — the tests were not testing enough
+A mutation pass broke the code in 44 ways and found that 21 of them shipped green. The gaps
+that mattered:
+- **`inject-lifecycle-state.sh` had no behavioural test at all.** Deleting its `awaitingCompact`
+  clear bricks the plugin — the compact gate then blocks every edit forever — and the suite
+  stayed green. It now has five: state is restored, the flag is cleared, a value cannot forge a
+  section header, free text stays fenced, and the fence cannot be closed by its own content.
+- **Version comparison was untested on the one pair that matters.** The only fixture was
+  `0.0.1` vs `9.9.9`, which sorts the same lexically and by version. `0.9.0 → 0.10.0` — the pair
+  this project just crossed — is now covered, along with no-downgrade and silent-when-current.
+- The throttle was tested for firing and never for expiring, so a throttle that never released
+  would have shipped. The published manifest, the authoritative source, was never consulted by
+  any test; it now is, through a stubbed `curl` rather than the network.
+- The compact gate's update notice is documented twice and was structurally unreachable from
+  the suite, because every compact-gate case disabled the check.
+- **`bash tests/hooks.test.sh` versus `/bin/bash tests/hooks.test.sh` made no difference**: the
+  hooks were launched with a bare `bash` from `PATH`, so the interpreter never reached the code
+  under test and the README's bash-3.2 advice bought nothing. Hooks now run under the same
+  interpreter as the suite.
+- The suite was not hermetic: a stray `.lifecycle-state.json` above `$TMPDIR` flipped two cases.
+- Deleting tests was invisible — 40% of the file could be removed and the run stayed green. The
+  assertion count is now asserted.
+- Detection was tested only on its happy path: lint commands, yarn/bun/npm, Rust, `Makefile`
+  gap-filling, and the requirements-only entry phase had no coverage.
+- The hook wiring check was a whitelist, so a fifth hook could be added without failing. It is
+  an equality check now.
+- CI's line-ending check skipped `scripts/`, the one directory it did not cover, and CI now
+  prints its `bash --version` so the 3.2 claim can be checked rather than assumed.
+
+100 test cases, up from 66.
+
 ## [0.10.0] — 2026-08-31
 
 Findings from a five-lens review of the repository before it was shared publicly. Everything
