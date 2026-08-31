@@ -9,6 +9,10 @@ argument-hint: "[start|next|status|advance|complete <step>]"
 
 # Lifecycle Orchestrator
 
+Runs one slice to a merged PR. It does **not** need `project-init` to have run: on a project
+with no plan documents the scope comes from what the user described at `start`, and SCOPE is
+the gate that pins it down. Use `project-init` only when what to build has not been decided.
+
 ## Routing
 
 **`status` (or no arguments):** execute INLINE — read `.lifecycle-state.json` and display the status table directly. Do NOT launch an agent. See "Status display" section below.
