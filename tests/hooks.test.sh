@@ -135,6 +135,53 @@ if [ -z "$out" ]; then echo "ok   opt-out env -> silent"; PASS=$((PASS+1))
 else echo "FAIL opt-out -> got: $out"; FAIL=$((FAIL+1)); fi
 
 echo
+echo "# state file resolution"
+mkdir -p "$WORK/repo/.git" "$WORK/repo/src/deep" "$WORK/repo/inner/.git"
+state CONTEXT_CHECK=completed SCOPE=completed PLAN=completed COMPONENTS=completed \
+      IMPLEMENT=completed VERIFY=completed REVIEW=in_progress
+mv .lifecycle-state.json "$WORK/repo/.lifecycle-state.json"
+
+out=$(cd "$WORK/repo/src/deep" && echo '{"stop_hook_active":false}' \
+      | BERGANT_WORKFLOW_NO_UPDATE_CHECK=1 bash "$HOOKS/check-lifecycle-gate.sh" 2>&1 >/dev/null)
+code=$?
+if [ "$code" = "2" ] && printf '%s' "$out" | grep -q "ORDER VIOLATION"; then
+  echo "ok   nested cwd -> state found, still enforced"; PASS=$((PASS+1))
+else
+  echo "FAIL nested cwd -> exit $code, out: $out"; FAIL=$((FAIL+1))
+fi
+
+out=$(cd "$WORK/repo/inner" && echo '{"stop_hook_active":false}' \
+      | BERGANT_WORKFLOW_NO_UPDATE_CHECK=1 bash "$HOOKS/check-lifecycle-gate.sh" 2>&1 >/dev/null)
+code=$?
+if [ "$code" = "0" ] && [ -z "$out" ]; then
+  echo "ok   search stops at a repository boundary"; PASS=$((PASS+1))
+else
+  echo "FAIL repo boundary -> exit $code, out: $out"; FAIL=$((FAIL+1))
+fi
+rm -f "$WORK/repo/.lifecycle-state.json"
+
+echo
+echo "# missing jq is audible"
+NOJQ="$WORK/nojq-bin"
+mkdir -p "$NOJQ"
+for b in bash sh dirname date head tail sort printf cat basename grep sed rm mkdir env curl; do
+  src=$(command -v "$b" 2>/dev/null) && ln -sf "$src" "$NOJQ/$b"
+done
+state CONTEXT_CHECK=in_progress
+mkdir -p "$WORK/t4"
+out=$(PATH="$NOJQ" TMPDIR="$WORK/t4" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+case "$out" in
+  *"NOT being enforced"*) echo "ok   no jq + active lifecycle -> warns the user"; PASS=$((PASS+1)) ;;
+  *) echo "FAIL no jq warning -> got: ${out:-<empty>}"; FAIL=$((FAIL+1)) ;;
+esac
+
+rm -f .lifecycle-state.json
+mkdir -p "$WORK/t5"
+out=$(PATH="$NOJQ" TMPDIR="$WORK/t5" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+if [ -z "$out" ]; then echo "ok   no jq, no lifecycle -> silent"; PASS=$((PASS+1))
+else echo "FAIL no jq without lifecycle -> got: $out"; FAIL=$((FAIL+1)); fi
+
+echo
 echo "# hooks.json wiring"
 cat > "$WORK/wiring.py" <<'PYW'
 import json, sys

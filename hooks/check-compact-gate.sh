@@ -11,12 +11,10 @@
 #   0 — allow (no flag, or no lifecycle active)
 #   2 — block (compact required, stderr message sent to Claude)
 
-STATE_FILE=".lifecycle-state.json"
+# shellcheck source=lib-state.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-state.sh"
 
-# No lifecycle active → allow
-if [ ! -f "$STATE_FILE" ]; then
-  exit 0
-fi
+STATE_FILE="$(find_state_file)" || exit 0
 
 AWAITING=$(jq -r '.awaitingCompact // false' "$STATE_FILE" 2>/dev/null)
 

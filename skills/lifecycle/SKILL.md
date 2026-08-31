@@ -35,8 +35,10 @@ Critical rules:
 7. GitHub operations via the `gh` CLI (`gh pr create`, `gh pr merge`). Never use interactive
    flags — pass `--title`/`--body` explicitly. If `gh` is missing or unauthenticated, fall back
    to GitHub MCP (`mcp__github__*`).
-8. **Sync TaskList with step status.** When a step changes status in the state file, find the matching TaskList task by its `[STEP_NAME]` prefix and update it: `in_progress` when step starts, `completed` when step finishes. Use TaskList to find the task ID, then TaskUpdate to change status.
-9. When a task is completed, update its status in the corresponding `docs/plan/slice-*.md` file (change ⏳ to ✅).
+8. **Never mutate Git beyond what the current step prescribes.** No `stash`, no `checkout -f`,
+   no `clean`, no `add -A`, no `branch -D`, no force push. If the tree is not what the step
+   expects, stop and ask.
+9. When a task is completed, tick its checkbox in the corresponding `docs/plan/slice-*.md` file.
 
 When you hit a user gate (STOP HERE), return the gate message. Return a concise summary of what was done and what the user needs to do next.
 
@@ -60,7 +62,7 @@ Display a formatted table:
 
 | Command | Action |
 |---------|--------|
-| `start <task>` | Initialize lifecycle, create state + TaskList, set `awaitingCompact: true`. Supports `--skip-scope`. |
+| `start <task>` | Git preflight, then initialize state with `awaitingCompact: true`. Supports `--skip-scope`. |
 | `advance` | Move to next step (validates current is completed, respects gates). |
 | `complete <step>` | User confirms a gate. Marks step completed, advances. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |

@@ -23,6 +23,19 @@ Prompting your way around this doesn't hold, because a prompt is advice. This pl
 the process as state on disk plus three hooks that read it, so the rules survive both
 compaction and Claude's own optimism.
 
+## What this assumes about your project
+
+It is built for **React/Node**, and it does not pretend otherwise. `VERIFY` and `TEST` run
+`npm run build`, `npm run lint`, Vitest and Playwright; `project-init` defaults to an
+FSD-lite layout with Biome, Tailwind, shadcn and Radix. On a Python, Go, PHP or Rust
+repository those commands are simply wrong.
+
+That is deliberate rather than unfinished. The point of the plugin is to remove decisions from
+every task — a stack it has to discover each time is a decision it did not remove. If your
+stack is different, **fork it and change the commands**: the enforcement layer (the hooks, the
+state file, the ten steps, the gates) has nothing React-specific in it, and the toolchain lives
+in `skills/lifecycle/references/steps.md` and `skills/project-init/references/phases.md`.
+
 ## What's in the box
 
 | Component | Type | What it does |
@@ -179,13 +192,33 @@ That second case is why `TEST` cannot quietly disappear from a slice. It is not 
 are never asked to approve tests — but `REVIEW` cannot start until `TEST` is closed one way or the
 other.
 
+### What the hooks do not enforce
+
+Worth being precise, because the whole pitch is that hooks beat prompts:
+
+- **The state file is written by the model.** The hooks read it, so they enforce the *order of
+  the record*, not the truth behind it. A gate marked `completed` is taken at its word. What
+  the hooks make impossible is drifting past a gate by forgetting; what they cannot make
+  impossible is a deliberate false entry.
+- **The compact gate only sees agent launches** (`PreToolUse(Agent)`). Work done directly with
+  Bash or file edits does not pass through it. It is a context-hygiene gate, not a barrier.
+- **Everything is prose below the hook layer.** The steps themselves — what `TEST` writes, how
+  `REVIEW` stages — are instructions to a model. The hooks bound the sequence, not the content.
+- **Anything with write access can disable it.** Deleting `.lifecycle-state.json` ends
+  enforcement, which is the intended escape hatch, not a hole to plug.
+
+Branch protection, CI and human review remain the real boundary. This plugin makes a long task
+survive a long session; it is not a security control.
+
 ## What it writes to your repo
 
 Worth knowing before you install something that ships hooks:
 
 - `.lifecycle-state.json` — project root, git-ignored, deleted automatically on `CLOSE`.
   It lives at the root rather than under `.claude/` because the latter triggers a
-  write-permission prompt on every single update.
+  write-permission prompt on every single update. The hooks find it by walking up from the
+  session's directory to the repository root, so working in a subdirectory does not silently
+  switch enforcement off.
 - `docs/spec-state.json` — `project-init` phase tracking, git-ignored.
 - `docs/` — the generated PRD, architecture and `docs/plan/slice-*.md` files. These are
   yours to commit.
@@ -209,9 +242,10 @@ file fetch. `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` stops both.
   Without it the hooks silently no-op, which means gate enforcement is off and you get the
   skills without the guarantees.
 
-A missing `jq` fails quietly: the scripts still run, every read comes back empty, and the hooks
-allow everything — you get the skills and none of the guarantees. If you are unsure, start a
-lifecycle and try to skip a gate; you should be stopped.
+A missing `jq` leaves the hooks unable to read state, and a hook that cannot read state does
+not block. That used to happen in silence; now, whenever a lifecycle is active and `jq` is
+absent, the session opens with a warning saying gates are not being enforced. If you want to
+confirm it yourself, start a lifecycle and try to skip a gate — you should be stopped.
 
 **Platform.** The hook suite runs on ubuntu, macos and windows on every push — on Windows
 under Git Bash, which is what Claude Code would use there. What CI cannot cover is Claude Code
@@ -246,6 +280,7 @@ bergant-workflow/
 │   └── lifecycle/
 ├── hooks/
 │   ├── hooks.json
+│   ├── lib-state.sh
 │   ├── check-plugin-update.sh
 │   ├── check-compact-gate.sh
 │   ├── inject-lifecycle-state.sh

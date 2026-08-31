@@ -6,6 +6,7 @@ File: `.lifecycle-state.json`
 {
   "task": "<task-name>",
   "branch": "<current git branch>",
+  "baseBranch": "<default branch discovered at CONTEXT_CHECK — never assumed to be master>",
   "startedAt": "<ISO timestamp>",
   "currentStep": "CONTEXT_CHECK",
   "awaitingCompact": true,

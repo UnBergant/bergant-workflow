@@ -16,12 +16,10 @@
 # stops there to ask for /compact. Blocking on an in-progress auto step would fire on every
 # such run. An auto step that is started and abandoned is not caught; one that is skipped is.
 
-STATE_FILE=".lifecycle-state.json"
+# shellcheck source=lib-state.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-state.sh"
 
-# No lifecycle active → allow
-if [ ! -f "$STATE_FILE" ]; then
-  exit 0
-fi
+STATE_FILE="$(find_state_file)" || exit 0
 
 # Malformed or legacy state without a steps object → allow, nothing to enforce
 if ! jq -e '.steps' "$STATE_FILE" >/dev/null 2>&1; then
