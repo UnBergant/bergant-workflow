@@ -1,5 +1,7 @@
 # bergant-workflow
 
+[![hooks](https://github.com/UnBergant/bergant-workflow/actions/workflows/hooks.yml/badge.svg)](https://github.com/UnBergant/bergant-workflow/actions/workflows/hooks.yml)
+
 A Claude Code plugin that makes a long feature survive a long session.
 
 Skills tell Claude what the process is. Hooks make sure it actually follows it — Claude
@@ -205,9 +207,10 @@ A missing `jq` fails quietly: the scripts still run, every read comes back empty
 allow everything — you get the skills and none of the guarantees. If you are unsure, start a
 lifecycle and try to skip a gate; you should be stopped.
 
-**Platform.** Developed and tested on macOS; Linux uses the same tools. Windows is *not*
-tested — the scripts avoid GNU-only syntax and the repo pins LF line endings so a Git Bash
-clone is not mangled, but nobody has run it end to end there. Reports welcome.
+**Platform.** The hook suite runs on ubuntu, macos and windows on every push — on Windows
+under Git Bash, which is what Claude Code would use there. What CI cannot cover is Claude Code
+itself on Windows: whether it hands `${CLAUDE_PLUGIN_ROOT}` to `bash` in a form Git Bash
+accepts. If you run this on Windows, a report either way is welcome.
 
 **Optional** — every one of these degrades gracefully. The first time a step needs a missing
 tool, the skill offers a one-time choice: set it up now, or skip that step and note the skip.
