@@ -20,6 +20,7 @@ the state file is per-task and disappears at `CLOSE`, this one stays.
 |-------|---------|
 | `commands.build` / `.lint` / `.test` / `.e2e` | Exactly what to run. `null` means the project has none — the step reports the skip instead of substituting a guess |
 | `commands.storybook` | Optional. The component workbench build, if the project has one. Absent means COMPONENTS skips that substep rather than scaffolding a workbench |
+| `integrationTest` | An accepted integration path for what this project *is* — e.g. `telethon` for a Telegram bot, which drives it as a real user. Needs credentials and network, so it is never assumed and never run in CI by default |
 | `testSetupAccepted` | The runner the user agreed to add, when the project had no tests. The first slice that needs tests installs it and fills in `commands.test` |
 | `testSetupDeclined` | `"once"` — declined at adoption; the offer returns once, at the first slice that adds real logic. `"always"` — declined twice, never raised again. Absent means it has not been asked yet, and silence never sets it |
 | `adoptedFrom` | `"empty"` when the project had no manifest yet — the first step that finds one re-runs adoption instead of reporting "not configured" forever |

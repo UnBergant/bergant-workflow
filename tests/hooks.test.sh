@@ -147,16 +147,23 @@ installed_version() {
   printf '{"version":"%s"}' "$1" > "$WORK/installed/.claude-plugin/plugin.json"
 }
 
-# update_out <home> <installed> <published> [extra env] — one update check, fully isolated
+# A curl that always fails, so version cases depend only on their fixture. Without this the
+# hook fetched the real published manifest and the actual release overrode the fixture — the
+# tests passed only while the live version happened to agree with them.
+NOCURL="$WORK/nocurl"; mkdir -p "$NOCURL"
+printf '#!/bin/sh\nexit 7\n' > "$NOCURL/curl"
+chmod +x "$NOCURL/curl"
+
+# update_out <home> <installed> <published> — one update check, offline and fully isolated
 update_out() {
   local h; h=$(fresh_home "$1" "$3")
   installed_version "$2"
-  HOME="$h" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+  PATH="$NOCURL:$PATH" HOME="$h" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
     "$SHELL_UNDER_TEST" "$HOOKS/check-plugin-update.sh" --text 2>/dev/null
 }
 
 H1=$(fresh_home 1)
-out=$(HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+out=$(PATH="$NOCURL:$PATH" HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       "$SHELL_UNDER_TEST" "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 case "$out" in
   *"0.0.1 is installed, 9.9.9 is published"*) echo "ok   --text -> plain line names both versions"; PASS=$((PASS+1)) ;;
@@ -167,7 +174,7 @@ esac
 # fields rather than just "some output happened".
 mkdir -p "$WORK/t3"
 H3=$(fresh_home 3)
-out=$(HOME="$H3" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+out=$(PATH="$NOCURL:$PATH" HOME="$H3" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       "$SHELL_UNDER_TEST" "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 sysmsg=$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)
 ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
@@ -182,7 +189,7 @@ case "$sysmsg" in
   *) echo "FAIL systemMessage -> got: ${sysmsg:-<empty>}"; FAIL=$((FAIL+1)) ;;
 esac
 
-out=$(HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+out=$(PATH="$NOCURL:$PATH" HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       "$SHELL_UNDER_TEST" "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 if [ -z "$out" ]; then echo "ok   second run same day -> throttled"; PASS=$((PASS+1))
 else echo "FAIL throttle -> got: $out"; FAIL=$((FAIL+1)); fi
@@ -274,7 +281,7 @@ else echo "FAIL current version -> got: $out"; FAIL=$((FAIL+1)); fi
 H6=$(fresh_home 6 9.9.9); installed_version 0.0.1
 mkdir -p "$H6/.cache/bergant-workflow"
 echo 0 > "$H6/.cache/bergant-workflow/update-check"
-out=$(HOME="$H6" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+out=$(PATH="$NOCURL:$PATH" HOME="$H6" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       "$SHELL_UNDER_TEST" "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 case "$out" in
   *"is published"*) echo "ok   stamp older than a day -> checks again"; PASS=$((PASS+1)) ;;
@@ -477,6 +484,20 @@ detect notests '.testSetup.runner' vitest
 detect notests '.testSetup.e2e' playwright
 detect notests '.hasUI' true
 detect py '.testSetup' null
+
+# What the project is changes what testing it means. A bot's handlers are unit-testable; its
+# conversation is not, and the offer has to say so rather than stopping at the unit runner.
+mkdir -p "$WORK/fx/tgpy" "$WORK/fx/tgnode"
+printf 'aiogram==3.0\n' > "$WORK/fx/tgpy/requirements.txt"
+detect tgpy '.domain' telegram-bot
+detect tgpy '.testSetup.runner' pytest
+detect tgpy '.testSetup.integration' telethon
+
+printf '{"dependencies":{"telegraf":"^4"}}' > "$WORK/fx/tgnode/package.json"
+touch "$WORK/fx/tgnode/package-lock.json"
+detect tgnode '.domain' telegram-bot
+detect tgnode '.testSetup.integration' gramjs
+detect notests '.domain' null
 detect empty '.testSetup' null
 
 detect empty '.hasSourceCode' false
@@ -542,7 +563,7 @@ echo "$PASS passed, $FAIL failed"
 
 # Truncating this file used to leave it green: fewer assertions is not fewer failures. The
 # expected count is asserted so deleting cases is itself a failure. Raise it when adding tests.
-EXPECTED=100
+EXPECTED=106
 if [ $((PASS + FAIL)) -lt "$EXPECTED" ]; then
   echo "FAIL only $((PASS + FAIL)) assertions ran, expected at least $EXPECTED — did the suite get truncated?"
   FAIL=$((FAIL + 1))
