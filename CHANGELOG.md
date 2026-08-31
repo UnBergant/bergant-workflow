@@ -13,6 +13,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
   tests while every gate was still honoured. Skipping an auto step now blocks the turn with
   `LIFECYCLE ORDER VIOLATION`. The `LIFECYCLE GATE VIOLATION` message and behaviour for user
   gates are unchanged.
+- An auto step counts as skipped only while `pending` — never started. `start --skip-scope`
+  legitimately stops with `CONTEXT_CHECK` in progress and `SCOPE` already completed, and that
+  run must not be blocked.
 
 ### Added
 - `TEST` has an explicit skip condition, mirroring `COMPONENTS`: a slice with no new business
