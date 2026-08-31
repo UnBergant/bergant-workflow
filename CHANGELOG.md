@@ -4,6 +4,23 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.12.2] — 2026-08-31
+
+### Fixed
+- **A README command that could not be run.** "Using it on an existing project" showed
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project.sh"`. That variable is set for hooks by the
+  harness — it is empty in a user's shell and in a `Bash` call inside a session — so anyone
+  copying the line got `No such file or directory`. Replaced with a clone-and-run pair that was
+  executed verbatim to check it.
+- The claim that `/plugin` "does the same" as the two update commands was loose. `/plugin` opens
+  the plugin manager; the deterministic path is the two CLI commands.
+
+### Added
+- **What the plugin costs in context, and how to check it yourself** rather than trust a number:
+  `claude plugin details bergant-workflow` reports ~278 tokens added to every session at this
+  version — the two skill descriptions. The hooks cost nothing in context; they run in the
+  harness. A skill's instructions load only when it fires.
+
 ## [0.12.1] — 2026-08-31
 
 ### Fixed

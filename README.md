@@ -66,12 +66,15 @@ one thing safely.** Reach for the first only when the deciding has not happened 
 Most projects that install this already exist, so the first `lifecycle start` in a repository
 runs an adoption step before anything else. It reads the project rather than assuming it:
 
+The skill runs `scripts/detect-project.sh` itself; there is nothing for you to type. To see what
+it would say about your project before installing anything, run it from a clone:
+
 ```
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project.sh"
+git clone https://github.com/UnBergant/bergant-workflow /tmp/bwf
+bash /tmp/bwf/scripts/detect-project.sh /path/to/your/project
 ```
 
-The skill runs this itself — the path matters only if you want to try it by hand, since the
-script lives in the installed plugin, not in your repository. It reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
+It reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
 commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml` —
 and any file that looks like an existing plan. Then it asks you to confirm both halves once,
 and writes `.bergant-workflow.json`, which is committed with the project.
@@ -230,7 +233,8 @@ claude plugin update bergant-workflow               # install the new version
 ```
 
 Both steps matter: the first only refreshes metadata, the second is what swaps the version.
-Restart Claude Code afterwards. `/plugin` does the same from inside a session.
+Restart Claude Code afterwards. Inside a session, `/plugin` opens the plugin manager, which can
+do the same thing interactively.
 
 So that a stale install is noticeable at all, a notice appears at the top of a session when a
 newer version exists — and again on the block that opens a lifecycle, for sessions that were
@@ -305,6 +309,19 @@ Worth being precise, because the whole pitch is that hooks beat prompts:
 
 Branch protection, CI and human review remain the real boundary. This plugin makes a long task
 survive a long session; it is not a security control.
+
+### What it costs you in context
+
+Ask your own installation rather than taking a number on faith:
+
+```
+claude plugin details bergant-workflow
+```
+
+At 0.12.1 that reports **~278 tokens added to every session** — the two skill descriptions, which
+is what Claude reads to decide whether a skill applies. The hooks cost nothing in context: they
+run in the harness, not in the model. Invoking a skill loads its instructions, which is where
+the real cost sits (~3–4k tokens), and only when you actually use it.
 
 ## What it writes to your repo
 
