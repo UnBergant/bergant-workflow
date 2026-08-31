@@ -41,6 +41,30 @@ If your fork touches the hooks, run `bash tests/hooks.test.sh` (the suite behind
 allows everything, and with CRLF line endings it blocks everything. On macOS run it once with
 `/bin/bash`, which is 3.2 — that is what CI uses, and it parses differently from Homebrew's.
 
+## Using it on an existing project
+
+Most projects that install this already exist, so the first `lifecycle start` in a repository
+runs an adoption step before anything else. It reads the project rather than assuming it:
+
+```
+bash scripts/detect-project.sh
+```
+
+That reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
+commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml` —
+and any file that looks like an existing plan. Then it asks you to confirm both halves once,
+and writes `.bergant-workflow.json`, which is committed with the project.
+
+Two things it will not do. It will not invent a command: a repository with no lint script has
+no lint step, and `VERIFY` says it skipped rather than running something that was never set up.
+And it will not decide what your plan is — if there is one obvious candidate it proposes it, if
+there are several it lists them, and "there is no plan, take the scope from what I tell you" is
+a normal answer. Slices are how it prefers to work, not a precondition.
+
+Safety on an established repository comes from the git preflight: a dirty tree stops the run
+and asks, the base branch is discovered rather than assumed, staging is by explicit path, and
+branch deletion is `-d` only. It will not move, hide or sweep up work it did not create.
+
 ## What's in the box
 
 | Component | Type | What it does |
@@ -125,6 +149,7 @@ Commands are namespaced under `bergant-workflow:` after install.
 | `lifecycle complete <step>` | Your approval on a user gate. The only thing that clears one |
 | `lifecycle advance` | Move to the next step when the current one is done |
 | `lifecycle skip-compact` | Continue without compacting, on purpose. Recorded in state |
+| `lifecycle adopt` | Learn an existing project: detect its commands and plan, confirm, write `.bergant-workflow.json`. Runs automatically on the first `start` |
 | `lifecycle recover` | Rebuild state from git, build and tests when the state file is lost |
 
 ### No SSH key on GitHub?
@@ -240,6 +265,8 @@ survive a long session; it is not a security control.
 
 Worth knowing before you install something that ships hooks:
 
+- `.bergant-workflow.json` — project root, written once by adoption, **meant to be committed**.
+  It records the build/lint/test commands you confirmed and where your plan lives.
 - `.lifecycle-state.json` — project root, git-ignored, deleted automatically on `CLOSE`.
   It lives at the root rather than under `.claude/` because the latter triggers a
   write-permission prompt on every single update. The hooks find it by walking up from the
@@ -305,6 +332,8 @@ bergant-workflow/
 ├── skills/
 │   ├── project-init/
 │   └── lifecycle/
+├── scripts/
+│   └── detect-project.sh
 ├── hooks/
 │   ├── hooks.json
 │   ├── lib-state.sh
@@ -333,6 +362,10 @@ bergant-workflow/
 ```
 
 Delete any leftover `.lifecycle-state.json` if a lifecycle was interrupted before `CLOSE`.
+
+## Author
+
+Igor Druzhinin — [LinkedIn](https://www.linkedin.com/in/igor-druzhinin/)
 
 ## License
 

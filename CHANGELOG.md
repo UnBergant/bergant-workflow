@@ -4,6 +4,33 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-08-31
+
+### Added
+- **Adoption for existing projects.** The plugin assumed its own conventions: task context came
+  from `docs/plan/slice-*.md` and every check ran `npm run …`. On a repository that already
+  exists — which is most of them — the plan was somewhere else and the commands were wrong.
+  The first `lifecycle start` in a project now runs `ADOPT`, which reads the repository with
+  `scripts/detect-project.sh`, proposes what it found, and writes `.bergant-workflow.json` once
+  the user has confirmed it.
+- `scripts/detect-project.sh` — deterministic discovery, not prose. Reports stack and package
+  manager (npm/pnpm/yarn/bun lockfiles, `go.mod`, `pyproject.toml`, `Cargo.toml`, `Makefile`),
+  the build/lint/test/e2e commands that actually exist, and candidate plan documents. It only
+  reports a command whose script it can see, never a guess, and `Makefile` targets fill gaps
+  the primary stack could not name. Exits 0 on anything, including an empty directory.
+- `.bergant-workflow.json`, documented in `references/project-config.md`: the confirmed
+  commands and `planGlob`. Committed with the project, unlike the per-task state file. A `null`
+  command means the project has none — the step reports the skip instead of substituting
+  `npm run` on a repository that never asked for it.
+- `lifecycle adopt` re-runs the discovery when a project changes.
+
+### Changed
+- `planGlob` replaces the hardcoded `docs/plan/slice-*.md`, and `null` is a valid answer: a
+  project with no plan documents takes its scope from what the user says at `start`, with SCOPE
+  as the gate that pins it down.
+- TEST no longer names Vitest and Playwright as the frameworks. It infers what the project
+  already uses and does not introduce a new one inside a slice.
+
 ## [0.7.0] — 2026-08-31
 
 The two audit findings deferred from 0.6.0.
