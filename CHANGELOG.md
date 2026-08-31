@@ -4,6 +4,18 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-08-31
+
+### Fixed
+- The session-start notice is now shown by the CLI itself. Printing plain text put the line in
+  Claude's context and nothing more, so whether the user ever saw it came down to the model
+  deciding to mention it — advice, not a mechanism, which is the thing this plugin exists to
+  avoid. Verified against a real session: with plain stdout the line reached the model but
+  surfaced only when asked about directly. The hook now returns the JSON contract, with
+  `systemMessage` for the user and `hookSpecificOutput.additionalContext` for Claude.
+- `check-plugin-update.sh --text` keeps the old plain line for the compact gate, which appends
+  it to its own stderr block.
+
 ## [0.5.0] — 2026-08-31
 
 ### Changed
