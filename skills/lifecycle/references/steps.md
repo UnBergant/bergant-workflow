@@ -84,6 +84,12 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Run `npm run test` (and `npm run test:e2e` if applicable).
 - Mark TEST completed, advance.
 
+**Skip condition:** If the slice added no business logic and touched no UI — docs, config,
+or a pure refactor already covered by existing tests — auto-complete TEST and write the
+reason into `steps.TEST.skipReason`. Never skip it silently: the `Stop` hook refuses to end
+the turn once REVIEW starts while TEST is unfinished, and a slice that shipped logic with an
+empty `skipReason` means tests were dropped, not waived.
+
 ## REVIEW (gate: user)
 
 - **Pre-commit safety check (BEFORE staging — do not skip).** Make sure no secrets or

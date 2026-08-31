@@ -4,6 +4,28 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-31
+
+### Fixed
+- `check-lifecycle-gate.sh` (`Stop`) now enforces the order of **all ten** steps, not just the
+  five user gates. Previously an auto step could be dropped without anything noticing: `TEST`
+  sits between two user gates, so a run could go `VERIFY` → `REVIEW` and ship a slice with no
+  tests while every gate was still honoured. Skipping an auto step now blocks the turn with
+  `LIFECYCLE ORDER VIOLATION`. The `LIFECYCLE GATE VIOLATION` message and behaviour for user
+  gates are unchanged.
+- An auto step counts as skipped only while `pending` — never started. `start --skip-scope`
+  legitimately stops with `CONTEXT_CHECK` in progress and `SCOPE` already completed, and that
+  run must not be blocked.
+
+### Added
+- `TEST` has an explicit skip condition, mirroring `COMPONENTS`: a slice with no new business
+  logic and no UI change auto-completes the step and records why in `steps.TEST.skipReason`.
+  A waived test step is now visible in the state file instead of silent.
+
+### Note
+- The hook no-ops on a state file with no `steps` object, so a lifecycle started under 0.2.0
+  will not be blocked mid-run by the upgrade.
+
 ## [0.2.0] — 2026-08-27
 
 ### Changed

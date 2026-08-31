@@ -67,6 +67,7 @@ These fields survive `/compact` and give the next session enough semantic anchor
 | `codexOpinionIncorporated` | boolean | `/toxic-opinion` ran during SCOPE and findings merged into approved scope | Guards against re-asking Codex post-compact |
 | `codexFindings` | string[] | Approved SCOPE — distill Codex second-opinion diffs into short semantic tags | Each tag = anchor to rehydrate full context in PLAN (e.g., `"schema_enum_fix_required"`, `"split_transactions"`) |
 | `scopeNotes.approvedScope` | string[] | Approved SCOPE | Bullet list of concrete scope items the user confirmed; source of truth for PLAN and IMPLEMENT |
+| `steps.TEST.skipReason` | string | TEST auto-completed with no tests written | Makes a waived test step visible instead of silent. Empty on a slice that shipped logic = tests were dropped |
 
 **Tag naming convention for `codexFindings`:**
 - Lowercase, snake_case, ≤4 words

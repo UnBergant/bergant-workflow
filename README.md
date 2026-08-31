@@ -127,11 +127,21 @@ write that file:
 |-------------|-------|---------|
 | `check-compact-gate.sh` | `PreToolUse(Agent)` | Blocks agent launches while `awaitingCompact: true` — forces a `/compact` before the heavy steps |
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
-| `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it moved past a step you never approved |
+| `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
 
-The `Stop` hook is the one that matters. A step marked `gate: "user"` only clears when you run
-`/bergant-workflow:lifecycle complete <step>`. If a later step starts while that gate is still
-open, the hook blocks with a `LIFECYCLE GATE VIOLATION` and Claude has to come back and ask.
+The `Stop` hook is the one that matters. It walks the ten steps in order, finds the first one
+that is not `completed`, and blocks if anything after it has already started:
+
+- the unfinished step is a **user gate** (`gate: "user"`) — `LIFECYCLE GATE VIOLATION`. The gate
+  clears only when you run `/bergant-workflow:lifecycle complete <step>`, so Claude has to come
+  back and ask.
+- the unfinished step is an **auto step** (`PLAN`, `IMPLEMENT`, `TEST`, `DOCUMENT`) —
+  `LIFECYCLE ORDER VIOLATION`. Nothing to approve here; the step simply has to be finished, or
+  auto-completed with its reason recorded in the state file, before the next one runs.
+
+That second case is why `TEST` cannot quietly disappear from a slice. It is not a user gate — you
+are never asked to approve tests — but `REVIEW` cannot start until `TEST` is closed one way or the
+other.
 
 ## What it writes to your repo
 
