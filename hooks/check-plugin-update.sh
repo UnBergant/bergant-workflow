@@ -1,9 +1,11 @@
 #!/bin/bash
-# Prints a one-line update notice on stdout if a newer version of the plugin is published.
-# Two callers:
-#   - SessionStart(startup|resume) — wired in hooks.json; stdout lands in the session context,
-#     so the notice arrives once a day at the top of a session, independent of any lifecycle.
-#   - check-compact-gate.sh — appends it to the block that opens a lifecycle.
+# Reports a newer published version of the plugin, at most once a day. Two callers, two shapes:
+#
+#   - SessionStart(startup|resume), wired in hooks.json — emits the hook JSON contract, with
+#     `systemMessage` (which the CLI shows the user directly) and `additionalContext` (which
+#     reaches Claude). Plain stdout would only reach Claude, and whether the user ever hears
+#     about it would then be the model's judgement call.
+#   - check-compact-gate.sh, with --text — one plain line to append to its stderr block.
 #
 # Always exits 0 and stays silent on anything unexpected: no jq, no curl, no network,
 # unreadable manifest, already up to date, or checked within the last 24h. A version
@@ -49,5 +51,15 @@ fi
 
 [ "$LATEST" = "$INSTALLED" ] && exit 0
 
-echo "PLUGIN UPDATE AVAILABLE: bergant-workflow ${INSTALLED} is installed, ${LATEST} is published. Tell the user in one line that they can update with: claude plugin marketplace update bergant-workflow && claude plugin update bergant-workflow (restart required). Do not run it yourself — updating a plugin means running new code on their machine, and that is their call."
+CMD="claude plugin marketplace update bergant-workflow && claude plugin update bergant-workflow"
+FOR_CLAUDE="PLUGIN UPDATE AVAILABLE: bergant-workflow ${INSTALLED} is installed, ${LATEST} is published. If the user asks about it, the update command is: ${CMD} (restart required). Do not run it yourself — updating a plugin means running new code on their machine, and that is their call."
+FOR_USER="bergant-workflow ${LATEST} is available, you have ${INSTALLED}. Update: ${CMD} (restart required)."
+
+if [ "$1" = "--text" ]; then
+  echo "$FOR_CLAUDE"
+else
+  jq -n --arg u "$FOR_USER" --arg c "$FOR_CLAUDE" \
+    '{systemMessage: $u,
+      hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
+fi
 exit 0

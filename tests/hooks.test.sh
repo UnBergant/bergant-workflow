@@ -99,14 +99,32 @@ out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 mkdir -p "$WORK/t1"
 out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
-      bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+      bash "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 case "$out" in
-  *"0.0.1 is installed, 9.9.9 is published"*) echo "ok   stale install -> notice names both versions"; PASS=$((PASS+1)) ;;
-  *) echo "FAIL stale install -> got: ${out:-<empty>}"; FAIL=$((FAIL+1)) ;;
+  *"0.0.1 is installed, 9.9.9 is published"*) echo "ok   --text -> plain line names both versions"; PASS=$((PASS+1)) ;;
+  *) echo "FAIL --text -> got: ${out:-<empty>}"; FAIL=$((FAIL+1)) ;;
+esac
+
+# SessionStart shape: the CLI only shows the user what is in systemMessage, so assert both
+# fields rather than just "some output happened".
+mkdir -p "$WORK/t3"
+out=$(HOME="$FAKE" TMPDIR="$WORK/t3" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+      bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+sysmsg=$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)
+ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+evt=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName // empty' 2>/dev/null)
+if [ -n "$sysmsg" ] && [ -n "$ctx" ] && [ "$evt" = "SessionStart" ]; then
+  echo "ok   default -> hook json carries systemMessage and additionalContext"; PASS=$((PASS+1))
+else
+  echo "FAIL default json -> got: ${out:-<empty>}"; FAIL=$((FAIL+1))
+fi
+case "$sysmsg" in
+  *"9.9.9 is available, you have 0.0.1"*) echo "ok   systemMessage names both versions"; PASS=$((PASS+1)) ;;
+  *) echo "FAIL systemMessage -> got: ${sysmsg:-<empty>}"; FAIL=$((FAIL+1)) ;;
 esac
 
 out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
-      bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+      bash "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 if [ -z "$out" ]; then echo "ok   second run same day -> throttled"; PASS=$((PASS+1))
 else echo "FAIL throttle -> got: $out"; FAIL=$((FAIL+1)); fi
 

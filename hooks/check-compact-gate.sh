@@ -26,7 +26,7 @@ if [ "$AWAITING" = "true" ]; then
 
   # Piggyback the version check on the block that already opens every lifecycle.
   # The helper is silent unless a newer version is published, and can never fail the hook.
-  NOTE=$(bash "$(dirname "${BASH_SOURCE[0]}")/check-plugin-update.sh" 2>/dev/null) || NOTE=""
+  NOTE=$(bash "$(dirname "${BASH_SOURCE[0]}")/check-plugin-update.sh" --text 2>/dev/null) || NOTE=""
   [ -n "$NOTE" ] && MSG="$MSG
 
 $NOTE"

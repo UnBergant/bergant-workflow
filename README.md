@@ -134,7 +134,9 @@ Restart Claude Code afterwards. `/plugin` does the same from inside a session.
 
 So that a stale install is noticeable at all, a notice appears at the top of a session when a
 newer version exists — and again on the block that opens a lifecycle, for sessions that were
-already running. It compares the version in your
+already running. The session-start one is shown to you by the CLI itself, not relayed by
+Claude: the hook returns `systemMessage` alongside the context, so the line does not depend on
+the model choosing to mention it. It compares the version in your
 `plugin.json` against two sources — the marketplace clone on disk, which is only as fresh as
 your last `marketplace update`, and this project's `plugin.json` on `main`, which is served
 through a CDN and can lag a release by a few minutes — then prints the two commands above. It
