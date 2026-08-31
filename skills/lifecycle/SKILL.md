@@ -39,6 +39,10 @@ Critical rules:
    no `clean`, no `add -A`, no `branch -D`, no force push. If the tree is not what the step
    expects, stop and ask.
 9. When a task is completed, tick its checkbox in the corresponding `docs/plan/slice-*.md` file.
+10. **Live checklist, if the session has one.** If a checklist tool such as `TodoWrite` is
+    available, mirror the step statuses into it so progress renders in the UI. It is a mirror,
+    never the record — `.lifecycle-state.json` is the record, and `status` reads from it. Some
+    builds do not expose the tool at all; when it is missing, skip this silently.
 
 When you hit a user gate (STOP HERE), return the gate message. Return a concise summary of what was done and what the user needs to do next.
 

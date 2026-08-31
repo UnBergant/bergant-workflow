@@ -52,7 +52,7 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Explore related code via Agent(Explore).
 - **Component inventory (MANDATORY for UI tasks):** For each component: new or existing? tokens needed? variants/states? Can reuse existing tokens?
 - Present plan to user. When approved:
-  - Record the subtasks in `steps.IMPLEMENT.subtasks` in the state file — that is the only progress record, and `/bergant-workflow:lifecycle status` renders it.
+  - Record the subtasks in `steps.IMPLEMENT.subtasks` in the state file — that is the record, and `/bergant-workflow:lifecycle status` renders it. If a checklist tool such as `TodoWrite` is available, mirror them there too.
   - Save component inventory to `"components"` array in COMPONENTS step.
 - **Set `"awaitingCompact": true`**.
 - Display: `✅ PLAN completed. 🧹 Run /compact before continuing.`

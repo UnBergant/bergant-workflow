@@ -33,11 +33,13 @@ recommendation, it says so.
   findings) through fenced, truncated and labelled as data. Those fields are model-written, so
   a `cat` of the whole file let whatever landed in them read as instructions.
 
-### Removed
-- The `TaskList`/`TaskUpdate` synchronisation rules. Claude Code 2.1.251 exposes no such tools
-  (`Task`, `TaskOutput` and `TaskStop` are unrelated), and `allowed-tools` never granted them,
-  so the instruction could not execute. Step progress lives in the state file and
-  `/bergant-workflow:lifecycle status`, which is what rendered it all along.
+### Changed
+- The step-progress rule named the wrong tools. `TaskList`/`TaskUpdate` are Claude Code's
+  multi-agent task family, gated behind `hasTaskListTools` and carrying owners and claims; the
+  per-session checklist is `TodoWrite`. Neither is exposed to sessions in 2.1.251, so the rule
+  could never execute. It is now an explicitly optional mirror of the state file: use a
+  checklist tool if the session has one, skip silently otherwise. The state file stays the
+  record, and `lifecycle status` renders it either way.
 
 ### Added
 - README states plainly that the plugin targets React/Node, and recommends forking it for other

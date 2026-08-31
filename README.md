@@ -264,6 +264,7 @@ Nothing here hard-blocks the workflow.
 | Design agents (`brand-agent`/`ux-agent`/`visual-agent`/`ui-agent`) | `project-init` design-system step | a `general-purpose` agent produces the same `BRIEF.md` with less specialization |
 | `interface-design`, Vercel and `frontend-design` skills | `project-init` design-system step | the same checks are applied inline and the docs record that |
 | Jira MCP (`mcp__atlassian__*`) | `project-init` DECOMPOSITION → optional sync | Jira sync skipped, slices stay in `docs/plan/` |
+| A session checklist tool (`TodoWrite`) | `lifecycle` progress rendering | step status still lives in the state file; `lifecycle status` prints the same table. Not every build exposes the tool |
 
 None of the optional agents or skills are bundled here — this plugin stays small on purpose,
 and the skills are written to work without them.
