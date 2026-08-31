@@ -109,6 +109,19 @@ Then, in a project:
 
 Commands are namespaced under `bergant-workflow:` after install.
 
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `project-init start <spec>` | Spec → requirements → PRD → architecture → plan → slices |
+| `lifecycle start <task>` | Git preflight, then open a lifecycle for one slice. `--skip-scope` when the scope is already agreed |
+| `lifecycle next` | Pick up the next unfinished slice |
+| `lifecycle status` | Where am I — the step table, gates marked, `IMPLEMENT` subtasks |
+| `lifecycle complete <step>` | Your approval on a user gate. The only thing that clears one |
+| `lifecycle advance` | Move to the next step when the current one is done |
+| `lifecycle skip-compact` | Continue without compacting, on purpose. Recorded in state |
+| `lifecycle recover` | Rebuild state from git, build and tests when the state file is lost |
+
 ### No SSH key on GitHub?
 
 The `owner/repo` shorthand above is cloned over SSH. If you have no SSH key set up,
@@ -294,9 +307,31 @@ bergant-workflow/
 │   ├── check-compact-gate.sh
 │   ├── inject-lifecycle-state.sh
 │   └── check-lifecycle-gate.sh
+├── tests/
+│   └── hooks.test.sh
+├── .github/workflows/
+│   ├── tests.yml            reusable body
+│   ├── tests-linux.yml
+│   ├── tests-macos.yml
+│   └── tests-windows.yml
+├── .gitattributes
 ├── CHANGELOG.md
+├── LICENSE
 └── README.md
 ```
+
+## Running the tests
+
+The badges above come from `tests/hooks.test.sh`, which needs nothing but `bash`, `jq` and
+Python:
+
+```
+bash tests/hooks.test.sh
+```
+
+Each case builds a state file, runs one hook against it, and asserts the exit code and the
+message — exit `2` blocks, exit `0` allows. On macOS run it with `/bin/bash` at least once
+before pushing: that is bash 3.2, and CI runs it there.
 
 ## Uninstall
 
