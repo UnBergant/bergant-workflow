@@ -1,0 +1,12 @@
+name: tests · windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    uses: ./.github/workflows/tests.yml
+    with:
+      os: windows-latest

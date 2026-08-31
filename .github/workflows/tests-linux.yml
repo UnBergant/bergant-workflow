@@ -1,0 +1,12 @@
+name: tests · linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    uses: ./.github/workflows/tests.yml
+    with:
+      os: ubuntu-latest
