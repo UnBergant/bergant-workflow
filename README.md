@@ -194,9 +194,20 @@ file fetch. `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` stops both.
 
 **Required**
 
+- `bash` — every hook is a bash script, wired as `bash <script>` in `hooks.json`. macOS and
+  Linux have it. On Windows it means Git Bash (ships with Git for Windows) or WSL, reachable
+  as `bash` from whatever shell Claude Code launches hooks in.
 - `jq` — all three hook scripts use it to read and update the state file (`brew install jq`).
   Without it the hooks silently no-op, which means gate enforcement is off and you get the
   skills without the guarantees.
+
+A missing `jq` fails quietly: the scripts still run, every read comes back empty, and the hooks
+allow everything — you get the skills and none of the guarantees. If you are unsure, start a
+lifecycle and try to skip a gate; you should be stopped.
+
+**Platform.** Developed and tested on macOS; Linux uses the same tools. Windows is *not*
+tested — the scripts avoid GNU-only syntax and the repo pins LF line endings so a Git Bash
+clone is not mangled, but nobody has run it end to end there. Reports welcome.
 
 **Optional** — every one of these degrades gracefully. The first time a step needs a missing
 tool, the skill offers a one-time choice: set it up now, or skip that step and note the skip.
