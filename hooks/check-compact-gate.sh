@@ -22,7 +22,16 @@ AWAITING=$(jq -r '.awaitingCompact // false' "$STATE_FILE" 2>/dev/null)
 
 if [ "$AWAITING" = "true" ]; then
   CURRENT_STEP=$(jq -r '.currentStep // "unknown"' "$STATE_FILE" 2>/dev/null)
-  echo "COMPACT REQUIRED: Context should be compressed before $CURRENT_STEP begins. Ask the user to run /compact first. Do NOT proceed until compact is done." >&2
+  MSG="COMPACT REQUIRED: Context should be compressed before $CURRENT_STEP begins. Ask the user to run /compact first. Do NOT proceed until compact is done."
+
+  # Piggyback the version check on the block that already opens every lifecycle.
+  # The helper is silent unless a newer version is published, and can never fail the hook.
+  NOTE=$(bash "$(dirname "${BASH_SOURCE[0]}")/check-plugin-update.sh" 2>/dev/null) || NOTE=""
+  [ -n "$NOTE" ] && MSG="$MSG
+
+$NOTE"
+
+  echo "$MSG" >&2
   exit 2
 fi
 

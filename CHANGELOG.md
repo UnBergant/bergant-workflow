@@ -4,6 +4,23 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-31
+
+### Added
+- Update notice. Nothing told an install that it was stale: plugins do not self-update and the
+  cache is keyed by version, so an install made in August stayed on that version indefinitely.
+  The compact gate that opens every lifecycle now carries a one-line notice when a newer
+  version is published, with the two commands that apply it.
+- README has an `## Update` section. It only documented installing.
+
+### Note
+- `check-plugin-update.sh` is a helper, not a hook — `hooks.json` still wires three.
+- The check runs at most once a day (stamp in `$TMPDIR`), times out after 3s, and is silent on
+  any failure: no `jq`, no `curl`, no network, unreadable manifest, or already current. It
+  reads the marketplace clone on disk first and the published manifest on `main` second.
+- Nothing about your code or usage leaves the machine — it is a plain fetch of this project's
+  `plugin.json`. Set `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` to disable it entirely.
+
 ## [0.3.0] — 2026-08-31
 
 ### Fixed
