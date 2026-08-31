@@ -25,16 +25,19 @@ compaction and Claude's own optimism.
 
 ## What this assumes about your project
 
-It is built for **React/Node**, and it does not pretend otherwise. `VERIFY` and `TEST` run
-`npm run build`, `npm run lint`, Vitest and Playwright; `project-init` defaults to an
-FSD-lite layout with Biome, Tailwind, shadcn and Radix. On a Python, Go, PHP or Rust
-repository those commands are simply wrong.
+**`lifecycle` makes no assumption about your stack.** It asks the repository how it builds,
+lints and tests itself — `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml`,
+`Cargo.toml` — and runs what it finds. A command it cannot find stays unset, and the step
+reports the skip rather than running something the project never had.
 
-That is deliberate rather than unfinished. The point of the plugin is to remove decisions from
-every task — a stack it has to discover each time is a decision it did not remove. If your
-stack is different, **fork it and change the commands**: the enforcement layer (the hooks, the
-state file, the ten steps, the gates) has nothing React-specific in it, and the toolchain lives
-in `skills/lifecycle/references/steps.md` and `skills/project-init/references/phases.md`.
+**`project-init` is opinionated, and only when starting from nothing.** Asked to design a new
+frontend it defaults to an FSD-lite layout with Biome, Tailwind, shadcn and Radix, because the
+point of the plugin is to remove decisions from every task. Those defaults are React-shaped;
+everything else in it — requirements, PRD, architecture, slicing — is not.
+
+If those defaults are wrong for you, **fork it and change them**: the enforcement layer (the
+hooks, the state file, the ten steps, the gates) has nothing framework-specific in it, and the
+opinions live in `skills/project-init/references/phases.md`.
 
 If your fork touches the hooks, run `bash tests/hooks.test.sh` (the suite behind the badges —
 `bash`, `jq` and Python, about a second). A broken hook does not fail loudly: without `jq` it
@@ -87,11 +90,12 @@ branch deletion is `-d` only. It will not move, hide or sweep up work it did not
 | Component | Type | What it does |
 |-----------|------|--------------|
 | `project-init` | skill | Turns a spec into structured docs: `INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → DECOMPOSITION → FINALIZE`. DECOMPOSITION writes task slices to `docs/plan/` |
-| `lifecycle` | skill | Drives one feature end-to-end: `CONTEXT_CHECK → SCOPE → PLAN → COMPONENTS → IMPLEMENT → VERIFY → TEST → REVIEW → DOCUMENT → CLOSE` |
-| 3 hooks | hooks | Enforce the compact-gate and the user-gates of `lifecycle` |
+| `lifecycle` | skill | Drives one feature end-to-end: `CONTEXT_CHECK → SCOPE → PLAN → COMPONENTS → IMPLEMENT → VERIFY → TEST → REVIEW → DOCUMENT → CLOSE`, preceded once per project by an adoption step that learns how the repository builds and tests itself |
+| 3 hooks | hooks | Enforce step order and the user gates, and force a `/compact` before the heavy steps. A fourth wiring only reports a stale install |
 
-The two are meant to be used together: `project-init` breaks a spec into slices,
-then `lifecycle next` picks up the next unfinished slice and runs it through the full cycle.
+They compose, but they are not a pair: `project-init` breaks a spec into slices and
+`lifecycle next` picks up the next one — while on a repository that already exists, `lifecycle`
+runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-run) below.
 
 ## The flow
 
@@ -122,8 +126,8 @@ then `lifecycle next` picks up the next unfinished slice and runs it through the
    |  PLAN              [cmpct]  explore + component inventory|
    |  COMPONENTS        [gate]   tokens, components, stories  |
    |  IMPLEMENT                  subtasks by agents, build    |
-   |  VERIFY            [gate]   build, lint, manual test plan|
-   |  TEST                       Vitest unit + Playwright e2e |
+   |  VERIFY            [gate]   your build + lint, manual plan|
+   |  TEST                       unit + e2e, in your framework |
    |  REVIEW            [gate]   secret scan, commit, review  |
    |  DOCUMENT                   MEMORY.md / CLAUDE.md update |
    |  CLOSE             [gate]   PR create -> merge -> clean  |
@@ -379,6 +383,8 @@ bergant-workflow/
 ```
 
 Delete any leftover `.lifecycle-state.json` if a lifecycle was interrupted before `CLOSE`.
+`.bergant-workflow.json` records your project's own commands — it is harmless to keep, and
+worth keeping if you might reinstall.
 
 ## Author
 
