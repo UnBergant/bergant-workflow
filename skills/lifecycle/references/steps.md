@@ -22,6 +22,11 @@ Read only the section for the current step. Do not load the entire file into con
   Update `"branch"` and `"baseBranch"` in state. `--ff-only` so a diverged local base fails
   loudly instead of producing a merge.
 - After `/compact`: SessionStart(compact) hook clears `awaitingCompact`.
+- The gate blocks agent launches and edit tools while the flag is set; `Bash` is deliberately
+  left alone so the user can still look around while deciding. If the user explicitly says to
+  continue without compacting, run `/bergant-workflow:lifecycle skip-compact`: set
+  `awaitingCompact: false`, `compactSkippedAt` to the current ISO timestamp, and
+  `compactSkippedBefore` to the step. Never do this without being asked.
 - On resume after compact: mark CONTEXT_CHECK completed, advance to SCOPE.
   - If SCOPE already `"completed"` (via `--skip-scope`): skip to PLAN and begin executing.
   - If SCOPE `"pending"`: advance to SCOPE (user gate — present requirements and STOP).

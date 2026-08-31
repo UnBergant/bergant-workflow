@@ -86,7 +86,8 @@ then `lifecycle next` picks up the next unfinished slice and runs it through the
                              +-----> next slice (repeat)
 
    [gate]   user gate    - Stop hook blocks until `complete <step>`
-   [cmpct]  compact gate - PreToolUse(Agent) hook blocks until `/compact`
+   [cmpct]  compact gate - PreToolUse hook blocks agents and edits until `/compact`
+            (or an explicit `lifecycle skip-compact`)
 ```
 
 ## Install
@@ -169,7 +170,7 @@ install:
 
 | Hook script | Event | Purpose |
 |-------------|-------|---------|
-| `check-compact-gate.sh` | `PreToolUse(Agent)` | Blocks agent launches while `awaitingCompact: true` — forces a `/compact` before the heavy steps |
+| `check-compact-gate.sh` | `PreToolUse(Agent\|Task\|Edit\|Write\|…)` | Blocks agent launches and edits while `awaitingCompact: true` — forces a `/compact` before the heavy steps. `Bash` is not matched |
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
 | `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
 
@@ -188,6 +189,11 @@ that is not `completed`, and blocks if anything after it has already started:
   `LIFECYCLE ORDER VIOLATION`. Nothing to approve here; the step simply has to be finished, or
   auto-completed with its reason recorded in the state file, before the next one runs.
 
+The compact gate is the one gate meant to be waved through. Its job is to stop you sliding
+into the next step on a bloated context without noticing — not to decide for you. When it
+blocks, you either run `/compact` or run `/bergant-workflow:lifecycle skip-compact`, which
+clears the flag and records that you chose to. The skill is told never to run that on its own.
+
 That second case is why `TEST` cannot quietly disappear from a slice. It is not a user gate — you
 are never asked to approve tests — but `REVIEW` cannot start until `TEST` is closed one way or the
 other.
@@ -200,8 +206,10 @@ Worth being precise, because the whole pitch is that hooks beat prompts:
   the record*, not the truth behind it. A gate marked `completed` is taken at its word. What
   the hooks make impossible is drifting past a gate by forgetting; what they cannot make
   impossible is a deliberate false entry.
-- **The compact gate only sees agent launches** (`PreToolUse(Agent)`). Work done directly with
-  Bash or file edits does not pass through it. It is a context-hygiene gate, not a barrier.
+- **The compact gate does not match `Bash`.** It covers agent launches and the edit tools, so
+  the session cannot quietly start writing code before compacting, but a shell command can
+  still change files. That is a deliberate trade: reading logs and running tests while you
+  decide whether to compact is not what is being gated.
 - **Everything is prose below the hook layer.** The steps themselves — what `TEST` writes, how
   `REVIEW` stages — are instructions to a model. The hooks bound the sequence, not the content.
 - **Anything with write access can disable it.** Deleting `.lifecycle-state.json` ends

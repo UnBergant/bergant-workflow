@@ -22,7 +22,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Agent",
+        "matcher": "Agent|Task|Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",

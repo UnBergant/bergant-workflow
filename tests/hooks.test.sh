@@ -88,6 +88,23 @@ check "awaiting compact -> block" 2 "COMPACT REQUIRED" check-compact-gate.sh
 state @awaitingCompact=false CONTEXT_CHECK=in_progress
 check "compact done -> allow" 0 EMPTY check-compact-gate.sh
 
+state @awaitingCompact=true @currentStep=CONTEXT_CHECK CONTEXT_CHECK=in_progress
+check "block message offers the explicit skip" 2 "skip-compact" check-compact-gate.sh
+
+# The matcher decides which tools reach the hook at all, so assert it here: agent launches and
+# the edit tools are covered, Bash deliberately is not.
+MATCHER=$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["PreToolUse"][0]["matcher"])' "$HOOKS/hooks.json")
+for tool in Agent Task Edit Write NotebookEdit; do
+  case "|$MATCHER|" in
+    *"|$tool|"*) echo "ok   compact gate covers $tool"; PASS=$((PASS+1)) ;;
+    *) echo "FAIL compact gate does not cover $tool (matcher: $MATCHER)"; FAIL=$((FAIL+1)) ;;
+  esac
+done
+case "|$MATCHER|" in
+  *"|Bash|"*) echo "FAIL compact gate matches Bash, which is meant to stay usable"; FAIL=$((FAIL+1)) ;;
+  *) echo "ok   compact gate leaves Bash alone"; PASS=$((PASS+1)) ;;
+esac
+
 echo
 echo "# check-plugin-update.sh"
 FAKE="$WORK/fakehome"
@@ -200,7 +217,7 @@ WIRING=$("$PY" "$WORK/wiring.py" "$HOOKS/hooks.json")
 for want in \
   "SessionStart:compact:inject-lifecycle-state.sh" \
   "SessionStart:startup|resume:check-plugin-update.sh" \
-  "PreToolUse:Agent:check-compact-gate.sh" \
+  "PreToolUse:Agent|Task|Edit|MultiEdit|Write|NotebookEdit:check-compact-gate.sh" \
   "Stop:*:check-lifecycle-gate.sh"; do
   if printf '%s\n' "$WIRING" | grep -qxF "$want"; then
     echo "ok   wired $want"; PASS=$((PASS+1))
