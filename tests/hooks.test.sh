@@ -519,7 +519,9 @@ done
 
 # Whitelisting the four leaves room for a fifth. A plugin that ships hooks should not be able
 # to gain one without this failing.
-if [ "$(printf '%s' "$WIRING" | sort)" = "$(printf '%s' "$EXPECTED_WIRING" | sort)" ]; then
+# LC_ALL=C so the comparison does not depend on locale collation: Git Bash on Windows orders
+# these strings differently from macOS and Linux, which failed this check for the wrong reason.
+if [ "$(printf '%s' "$WIRING" | LC_ALL=C sort)" = "$(printf '%s' "$EXPECTED_WIRING" | LC_ALL=C sort)" ]; then
   echo "ok   no hook is wired that is not on the list"; PASS=$((PASS+1))
 else
   echo "FAIL hooks.json wiring changed:"; printf '%s\n' "$WIRING"; FAIL=$((FAIL+1))
