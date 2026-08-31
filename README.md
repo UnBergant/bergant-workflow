@@ -67,10 +67,11 @@ Most projects that install this already exist, so the first `lifecycle start` in
 runs an adoption step before anything else. It reads the project rather than assuming it:
 
 ```
-bash scripts/detect-project.sh
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project.sh"
 ```
 
-That reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
+The skill runs this itself — the path matters only if you want to try it by hand, since the
+script lives in the installed plugin, not in your repository. It reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
 commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml` —
 and any file that looks like an existing plan. Then it asks you to confirm both halves once,
 and writes `.bergant-workflow.json`, which is committed with the project.
@@ -95,7 +96,7 @@ branch deletion is `-d` only. It will not move, hide or sweep up work it did not
 
 They compose, but they are not a pair: `project-init` breaks a spec into slices and
 `lifecycle next` picks up the next one — while on a repository that already exists, `lifecycle`
-runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-run) below.
+runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-run) above.
 
 ## The flow
 
@@ -164,6 +165,9 @@ Commands are namespaced under `bergant-workflow:` after install.
 | Command | What it does |
 |---------|--------------|
 | `project-init start <spec>` | Spec → requirements → PRD → architecture → plan → slices |
+| `project-init status` | Which phase you are on |
+| `project-init complete <phase>` | Your approval on a phase gate — without it the next phase does not start |
+| `project-init recover` | Rebuild `docs/spec-state.json` from the documents on disk |
 | `lifecycle start <task>` | Git preflight, then open a lifecycle for one slice. `--skip-scope` when the scope is already agreed |
 | `lifecycle next` | Pick up the next unfinished slice |
 | `lifecycle status` | Where am I — the step table, gates marked, `IMPLEMENT` subtasks |
@@ -245,11 +249,12 @@ which appends the same line to the block that opens a lifecycle.
 The `Stop` hook is the one that matters. It walks the ten steps in order, finds the first one
 that is not `completed`, and blocks if anything after it has already started:
 
-- the unfinished step is a **user gate** (`gate: "user"`) — `LIFECYCLE GATE VIOLATION`. The gate
+- the unfinished step is a **user gate** — `LIFECYCLE GATE VIOLATION`. Which steps those are is
+  decided by the hook, not by the state file, so a run cannot demote its own gate. The gate
   clears only when you run `/bergant-workflow:lifecycle complete <step>`, so Claude has to come
   back and ask.
-- the unfinished step is an **auto step** (`PLAN`, `IMPLEMENT`, `TEST`, `DOCUMENT`) —
-  `LIFECYCLE ORDER VIOLATION`. Nothing to approve here; the step simply has to be finished, or
+- the unfinished step is an **auto step**
+  (`CONTEXT_CHECK`, `PLAN`, `IMPLEMENT`, `TEST`, `DOCUMENT`) — `LIFECYCLE ORDER VIOLATION`. Nothing to approve here; the step simply has to be finished, or
   auto-completed with its reason recorded in the state file, before the next one runs.
 
 The compact gate is the one gate meant to be waved through. Its job is to stop you sliding
@@ -266,9 +271,11 @@ other.
 Worth being precise, because the whole pitch is that hooks beat prompts:
 
 - **The state file is written by the model.** The hooks read it, so they enforce the *order of
-  the record*, not the truth behind it. A gate marked `completed` is taken at its word. What
-  the hooks make impossible is drifting past a gate by forgetting; what they cannot make
-  impossible is a deliberate false entry.
+  the record*, not the truth behind it. Which steps exist and which are gates is fixed in the
+  hook, and a step missing from the file counts as unfinished — so editing the file can only
+  make the gates stricter, never looser. A gate marked `completed` is taken at its word. What
+  the hooks make impossible is drifting past a gate by forgetting, or walking away from a step
+  mid-run; what they cannot make impossible is a deliberate false entry.
 - **The compact gate does not match `Bash`.** It covers agent launches and the edit tools, so
   the session cannot quietly start writing code before compacting, but a shell command can
   still change files. That is a deliberate trade: reading logs and running tests while you
@@ -285,19 +292,27 @@ survive a long session; it is not a security control.
 
 Worth knowing before you install something that ships hooks:
 
-- `.bergant-workflow.json` — project root, written once by adoption, **meant to be committed**.
-  It records the build/lint/test commands you confirmed and where your plan lives.
+- `.bergant-workflow.json` — project root, written once by adoption. **The skill commits it**
+  after you confirm its contents. It records the build/lint/test commands you approved and
+  where your plan lives.
 - `.lifecycle-state.json` — project root, git-ignored, deleted automatically on `CLOSE`.
   It lives at the root rather than under `.claude/` because the latter triggers a
   write-permission prompt on every single update. The hooks find it by walking up from the
   session's directory to the repository root, so working in a subdirectory does not silently
   switch enforcement off.
 - `docs/spec-state.json` — `project-init` phase tracking, git-ignored.
-- `docs/` — the generated PRD, architecture and `docs/plan/slice-*.md` files. These are
-  yours to commit.
+- `docs/` — the generated PRD, architecture and plan files. These are yours to commit.
+- **`CLAUDE.md` and `.gitignore` at your project root** — `project-init`'s final phase creates
+  or merges into both, and `lifecycle` adds entries to `.gitignore` during REVIEW when its
+  secret scan finds something that should not be committed. Both are shared, team-owned files;
+  changes to them go through the same gates as everything else, but they are not confined to
+  `docs/`.
+- `MEMORY.md`, and `CLAUDE.md` or `AGENTS.md` again, at DOCUMENT.
 
-The hooks only ever touch `.lifecycle-state.json`, and they no-op entirely when that file
-does not exist — so with no active lifecycle, the plugin is inert.
+The enforcement hooks only ever touch `.lifecycle-state.json` (and a sibling `.tmp` while
+rewriting it), and they no-op entirely when that file does not exist — so with no active
+lifecycle, nothing is enforced and nothing is written. The one thing that still runs is the
+update check described below.
 
 Two things live outside the repo, both from the update check: a throttle stamp in `$TMPDIR`
 holding a unix timestamp, and one daily `GET` of this project's `plugin.json` from
@@ -311,9 +326,8 @@ file fetch. `BERGANT_WORKFLOW_NO_UPDATE_CHECK=1` stops both.
 - `bash` — every hook is a bash script, wired as `bash <script>` in `hooks.json`. macOS and
   Linux have it. On Windows it means Git Bash (ships with Git for Windows) or WSL, reachable
   as `bash` from whatever shell Claude Code launches hooks in.
-- `jq` — all three hook scripts use it to read and update the state file (`brew install jq`).
-  Without it the hooks silently no-op, which means gate enforcement is off and you get the
-  skills without the guarantees.
+- `jq` — every hook uses it to read and update the state file (`brew install jq`). Without it
+  they cannot read state, and a hook that cannot read state does not block.
 
 A missing `jq` leaves the hooks unable to read state, and a hook that cannot read state does
 not block. That used to happen in silence; now, whenever a lifecycle is active and `jq` is
@@ -331,7 +345,7 @@ Nothing here hard-blocks the workflow.
 
 | Dependency | Used by | If absent |
 |------------|---------|-----------|
-| `gh` CLI (authenticated) | `lifecycle` REVIEW / CLOSE (PR create & merge) | falls back to the GitHub MCP server; without either, you open the PR yourself |
+| `gh` CLI (authenticated) | `lifecycle` CLOSE (PR create & merge). REVIEW only commits locally and never pushes | falls back to the GitHub MCP server; without either, you open the PR yourself |
 | Storybook | `lifecycle` COMPONENTS | the component-review substep is skipped |
 | A second-opinion skill driving an external model | SCOPE and REVIEW cross-checks | in-house review agent only |
 | Design agents (`brand-agent`/`ux-agent`/`visual-agent`/`ui-agent`) | `project-init` design-system step | a `general-purpose` agent produces the same `BRIEF.md` with less specialization |

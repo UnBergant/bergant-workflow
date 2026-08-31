@@ -15,6 +15,11 @@ find_state_file() {
   dir="$(cd "$dir" 2>/dev/null && pwd)" || return 1
 
   while :; do
+    # Check the boundary before the file: a state file sitting directly in $HOME must not
+    # govern every project underneath it.
+    if [ -n "$HOME" ] && [ "$dir" = "$HOME" ]; then
+      return 1
+    fi
     if [ -f "$dir/.lifecycle-state.json" ]; then
       printf '%s\n' "$dir/.lifecycle-state.json"
       return 0

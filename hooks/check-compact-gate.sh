@@ -28,7 +28,10 @@ STATE_FILE="$(find_state_file)" || exit 0
 AWAITING=$(jq -r '.awaitingCompact // false' "$STATE_FILE" 2>/dev/null)
 
 if [ "$AWAITING" = "true" ]; then
-  CURRENT_STEP=$(jq -r '.currentStep // "unknown"' "$STATE_FILE" 2>/dev/null)
+  # Stripped of control characters: this value reaches the model inside a blocking message,
+  # and a state file can arrive with a cloned repository.
+  CURRENT_STEP=$(jq -r '(.currentStep // "unknown") | tostring | gsub("[\u0000-\u001f\u007f]"; " ") | .[0:60]' "$STATE_FILE" 2>/dev/null)
+  [ -n "$CURRENT_STEP" ] || CURRENT_STEP="unknown"
   MSG="COMPACT REQUIRED: Context should be compressed before $CURRENT_STEP begins. Ask the user to run /compact. If they would rather continue without compacting, they can run /bergant-workflow:lifecycle skip-compact — that is their call to make, not yours. Do NOT proceed until one of the two has happened."
 
   # Piggyback the version check on the block that already opens every lifecycle.

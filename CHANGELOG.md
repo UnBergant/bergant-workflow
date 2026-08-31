@@ -4,6 +4,89 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] — 2026-08-31
+
+Findings from a five-lens review of the repository before it was shared publicly. Everything
+below was reproduced before it was fixed.
+
+### Fixed — enforcement
+- **A step missing from `.steps` passed every gate.** A key that was absent read as neither
+  completed nor pending, so a state file listing only the step it had just done cleared the Stop
+  hook entirely. Which steps exist, and which of them are user gates, is now fixed in the hook
+  rather than read from the file the model writes; a missing step counts as pending. Editing
+  the state file can now only make the gates stricter.
+- **`skip-compact` could not be reached through the gate it lifts.** It routed through an agent
+  launch, and agent launches are exactly what the compact gate blocks — as was writing state,
+  since `Write` is matched too. It now runs inline and writes state through `jq`, the one tool
+  the gate does not match. The escape hatch the README promised did not exist until now.
+- **A step left `in_progress` was invisible to the Stop hook.** Marking a step in progress and
+  then moving on — the realistic way a step disappears — passed. Only the step named by
+  `currentStep` is exempt now, which is what `--skip-scope` needs and nothing more.
+
+### Fixed — untrusted input
+- **State file contents reached privileged context raw.** Values were printed unescaped, so a
+  newline in `currentStep` or an approved-scope entry could forge section headers, fake a
+  completed user gate, or close the fence around untrusted text and continue outside it. A
+  `.lifecycle-state.json` committed to a repository someone clones was a delivery vector for
+  this. Values are now stripped of control characters and truncated, and the fence carries a
+  per-run nonce.
+- The compact gate's block message carried `currentStep` into the model the same way. Same fix.
+- Version strings from the marketplace clone and the published manifest are validated as digits
+  and dots before being used or printed.
+
+### Fixed — blast radius
+- **The state-file search escaped into `$HOME`.** With no `.git` above it, the walk continued to
+  `/`, so one stale file in the home directory blocked every edit in every non-git project
+  beneath it. The walk now stops at `$HOME` as well as at a repository boundary.
+- **The update-check stamp was a predictable path in a shared `/tmp`.** Anyone able to
+  pre-create it as a symlink had the hook truncate the target on every session start. It lives
+  under `~/.cache/bergant-workflow/` now, and a symlink there is refused.
+- A failed `awaitingCompact` clear used to pass silently, leaving the gate blocking every edit
+  for the rest of the session. It now says so in the injected context.
+
+### Fixed — instructions a model could not follow
+- **`${CLAUDE_PLUGIN_ROOT}` does not expand inside reference files.** Reference files are read
+  as raw bytes, so ADOPT's first instruction ran as `bash "/scripts/detect-project.sh"` and the
+  whole adoption step collapsed into guessing. The path is now resolved in `SKILL.md`, where
+  interpolation works, and passed into the agent prompt.
+- **ADOPT committed to the user's repository before the git preflight ran**, with no staging
+  command given. It now runs after the preflight, stages one exact path, and does not commit at
+  all if the tree was dirty.
+- **CLOSE could never mark a slice done.** It searched for `Status: in progress`, which nothing
+  writes — `project-init` writes `Status: ⏳ pending`. `next` therefore returned the same slice
+  forever. That was the loop the whole plugin closes with.
+- `next` looked for a `⏳` marker on tasks; the template puts checkboxes on tasks and `⏳` on the
+  slice header. It reads the real markers now, and has a branch for a project with no plan.
+- Branch naming was `<task-key-lowercase>` with no definition, so `lifecycle start "Add user
+  login"` produced a branch name with spaces. The slug rule is now written down.
+- `recover` was routed but specified nowhere, leaving the model to invent which steps were
+  complete — and that invention is what the gates then enforce. It now has a section, and it
+  reconstructs conservatively: every user gate comes back `pending`, because no artefact on disk
+  proves an approval happened.
+- `DOCUMENT` told the model to update `MEMORY.md` and `design-issues.md`, which the plugin never
+  creates. It now updates what exists and creates nothing.
+- `COMPONENTS` mandated shadcn/ui, `.stories.tsx` and a Storybook build while rule 8 forbids
+  assuming a toolchain. The workbench substep is now conditional on `commands.storybook`.
+- `planGlob` was honoured in one rule and ignored in five other places that hardcoded
+  `docs/plan/slice-*.md`.
+- `adopt` was a documented command with no routing rule; `$CWD` in `project-init`'s agent prompt
+  is not a variable that expands; both skills' `allowed-tools` named `Agent` but not `Task`.
+
+### Fixed — detection
+- Plan candidates were joined with `|`, so a filename containing a pipe or a newline was handed
+  back as paths that do not exist. The list is JSON end to end now.
+- `suggestedEntryPhase` could never reach `DECOMPOSITION`: it never looked for planning output.
+  A project with `docs/plan/phase-*.md` was told to redo PLANNING.
+- A project adopted while empty records `adoptedFrom: "empty"`, so a repository that gains a
+  manifest later is re-adopted instead of reporting "not configured" for good.
+
+### Fixed — documentation
+- The README claimed `VERIFY` and `TEST` run npm, Vitest and Playwright, that the two skills are
+  meant to be used together, and that the hooks enforce more than they do. It listed neither
+  `project-init`'s gate-clearing command nor the fact that the plugin writes to the user's
+  `CLAUDE.md` and `.gitignore`. A blank line split the hooks table so its last row rendered as
+  literal text.
+
 ## [0.9.0] — 2026-08-31
 
 ### Added

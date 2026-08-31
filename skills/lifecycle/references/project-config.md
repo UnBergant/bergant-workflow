@@ -19,6 +19,8 @@ the state file is per-task and disappears at `CLOSE`, this one stays.
 | Field | Meaning |
 |-------|---------|
 | `commands.build` / `.lint` / `.test` / `.e2e` | Exactly what to run. `null` means the project has none — the step reports the skip instead of substituting a guess |
+| `commands.storybook` | Optional. The component workbench build, if the project has one. Absent means COMPONENTS skips that substep rather than scaffolding a workbench |
+| `adoptedFrom` | `"empty"` when the project had no manifest yet — the first step that finds one re-runs adoption instead of reporting "not configured" forever |
 | `planGlob` | Where task descriptions live. `null` means the project has no plan documents and scope comes from what the user says at `start` |
 | `adoptedAt` | When the answers were confirmed |
 
