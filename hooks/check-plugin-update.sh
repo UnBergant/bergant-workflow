@@ -13,8 +13,28 @@
 #
 # Opt out entirely: export BERGANT_WORKFLOW_NO_UPDATE_CHECK=1
 
+# shellcheck source=lib-state.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-state.sh"
+
+# Without jq every hook reads an empty value, compares it to nothing, and allows everything —
+# so a missing dependency turns enforcement off. That used to happen in silence, which is the
+# worst version of it: the skills still run and look like they are being enforced. Say it out
+# loud, but only when a lifecycle is actually active, and never block on it.
+# Probe that jq actually runs, rather than that a file by that name exists on PATH: a broken
+# or half-installed jq disables enforcement exactly as thoroughly as a missing one.
+if ! jq --version >/dev/null 2>&1; then
+  if find_state_file >/dev/null; then
+    if [ "$1" = "--text" ]; then
+      echo "DEPENDENCY MISSING: jq is not installed, so the lifecycle hooks cannot read the state file and every gate is currently unenforced. Tell the user to install jq (brew install jq)."
+    else
+      # Static text, no interpolation — safe to hand-write as JSON without jq.
+      printf '%s\n' '{"systemMessage":"bergant-workflow: jq is not installed, so lifecycle gates are NOT being enforced. Install it with: brew install jq","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"DEPENDENCY MISSING: jq is not installed, so the lifecycle hooks cannot read the state file and every gate is currently unenforced. The user has been told to install jq."}}'
+    fi
+  fi
+  exit 0
+fi
+
 [ -n "$BERGANT_WORKFLOW_NO_UPDATE_CHECK" ] && exit 0
-command -v jq >/dev/null 2>&1 || exit 0
 
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)}"
 INSTALLED=$(jq -r '.version // empty' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null)

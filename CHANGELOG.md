@@ -4,6 +4,52 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-08-31
+
+Remediation of an external audit of `v0.2.0` by the author of a Codex port. Their findings are
+kept in the wording of the fixes below; where this release deliberately diverges from their
+recommendation, it says so.
+
+### Fixed
+- **Git no longer assumes `master` and no longer touches work it does not own.** `CONTEXT_CHECK`
+  discovers the real default branch from `origin/HEAD` (this repository has only `main`, so the
+  hardcoded `git checkout master` could not run on the plugin's own source), refuses to start on
+  a dirty tree, a detached HEAD, or an in-progress rebase/merge/cherry-pick, and pulls with
+  `--ff-only`. `REVIEW` stages by explicit path — `git add -A`, `git add .` and `commit -a` are
+  forbidden, so unrelated changes cannot ride along. `CLOSE` deletes branches with `-d` only.
+  Diverging from the audit: on a dirty tree the run stops and asks. It never stashes, because
+  hiding someone's uncommitted work is the same class of silent mutation the audit objects to.
+- **Hooks find the state file by walking up to the repository root.** They used to read a bare
+  relative path, so starting a session in a subdirectory made an active lifecycle look absent —
+  and an absent lifecycle means every hook allows everything. The search stops at a `.git`
+  boundary so a nested repository never picks up its parent's state.
+- **A missing `jq` is now audible.** Without it the hooks read empty values and block nothing.
+  That happened silently, which is the worst version: the skills still look enforced. When a
+  lifecycle is active and `jq` is absent, the session now opens with a warning. It still does
+  not block — a missing dependency should not brick the workflow, contrary to the audit's
+  fail-closed recommendation.
+- **Compact restoration no longer dumps the raw state file into context.** It emits the
+  machine-readable fields explicitly, then passes free text (task title, approved scope,
+  findings) through fenced, truncated and labelled as data. Those fields are model-written, so
+  a `cat` of the whole file let whatever landed in them read as instructions.
+
+### Changed
+- The step-progress rule named the wrong tools. `TaskList`/`TaskUpdate` are Claude Code's
+  multi-agent task family, gated behind `hasTaskListTools` and carrying owners and claims; the
+  per-session checklist is `TodoWrite`. Neither is exposed to sessions in 2.1.251, so the rule
+  could never execute. It is now an explicitly optional mirror of the state file: use a
+  checklist tool if the session has one, skip silently otherwise. The state file stays the
+  record, and `lifecycle status` renders it either way.
+
+### Added
+- README states plainly that the plugin targets React/Node, and recommends forking it for other
+  stacks — the enforcement layer has nothing React-specific in it, only the toolchain does.
+- README has a "What the hooks do not enforce" section: the state file is model-written, so the
+  hooks enforce the order of the record rather than the truth behind it; the compact gate only
+  sees agent launches; below the hook layer everything is prose.
+- 29 test cases, including nested-directory resolution, the repository boundary, and the
+  missing-`jq` warning.
+
 ## [0.5.1] — 2026-08-31
 
 ### Fixed

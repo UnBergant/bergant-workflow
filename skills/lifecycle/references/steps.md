@@ -6,7 +6,21 @@ Read only the section for the current step. Do not load the entire file into con
 
 - Exists solely to enforce context cleanup before real work begins.
 - On `start`: state file created with `awaitingCompact: true`. PreToolUse(Agent) hook blocks agent launches.
-- **Create task branch** from master: `git checkout master && git pull && git checkout -b <task-key-lowercase>`. Update `"branch"` in state.
+- **Git preflight — run before touching anything.** Never assume the branch name, never move
+  someone else's work:
+  1. Find the real default branch, do not assume `master`:
+     `git symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's|^origin/||'`.
+     If that is empty, try `main`, then `master`, then ask the user. Record it as `"baseBranch"`.
+  2. `git status --porcelain`. If anything comes back, **STOP and ask the user** what to do with
+     it. Do NOT `git stash`, `git checkout -f`, `git clean`, or commit it — those are the user's
+     changes and hiding them is worse than stopping.
+  3. `git rev-parse --git-dir` and check for `rebase-merge`, `rebase-apply`, `MERGE_HEAD`,
+     `CHERRY_PICK_HEAD`, `BISECT_LOG`. If any exist, an operation is in progress → **STOP.**
+  4. If `HEAD` is detached, **STOP** and say so.
+- **Create task branch** only once the preflight is clean:
+  `git checkout <baseBranch> && git pull --ff-only && git checkout -b <task-key-lowercase>`.
+  Update `"branch"` and `"baseBranch"` in state. `--ff-only` so a diverged local base fails
+  loudly instead of producing a merge.
 - After `/compact`: SessionStart(compact) hook clears `awaitingCompact`.
 - On resume after compact: mark CONTEXT_CHECK completed, advance to SCOPE.
   - If SCOPE already `"completed"` (via `--skip-scope`): skip to PLAN and begin executing.
@@ -38,7 +52,7 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Explore related code via Agent(Explore).
 - **Component inventory (MANDATORY for UI tasks):** For each component: new or existing? tokens needed? variants/states? Can reuse existing tokens?
 - Present plan to user. When approved:
-  - Update TaskList: replace placeholder `[IMPLEMENT]` task with individual subtasks `[IMPLEMENT] S1: <title>`, etc.
+  - Record the subtasks in `steps.IMPLEMENT.subtasks` in the state file — that is the record, and `/bergant-workflow:lifecycle status` renders it. If a checklist tool such as `TodoWrite` is available, mirror them there too.
   - Save component inventory to `"components"` array in COMPONENTS step.
 - **Set `"awaitingCompact": true`**.
 - Display: `✅ PLAN completed. 🧹 Run /compact before continuing.`
@@ -103,9 +117,13 @@ empty `skipReason` means tests were dropped, not waived.
   - Scan the staged diff for inline secrets (high-entropy strings, `password=`, `Bearer `,
     `postgres://...:...@`). If found → STOP, tell the user, do NOT commit until resolved.
   - Only proceed to commit once the working tree is clean of secrets/temp files.
-- **Then: commit all changes.** Submitting for review === commit. Stage all changed files and create a commit on the feature branch. Do NOT push.
+- **Then: commit the task's own files.** Submitting for review === commit. Stage files by
+  explicit path — the ones this slice created or changed. Never `git add -A`, `git add .`, or
+  `git commit -a`: anything else in the tree belongs to the user, and the preflight promised not
+  to touch it. If `git status --porcelain` shows changes you cannot attribute to this task,
+  **STOP and ask** rather than sweeping them into the commit. Do NOT push.
 - Launch review Agent AND, if a dual-review skill such as `/toxic-review` is available, run it in parallel (default ON). If not available, proceed with the single review Agent only — note which was used.
-- toxic-review reviews the branch diff — pass base branch as argument (e.g., `/toxic-review master`).
+- toxic-review reviews the branch diff — pass the recorded `baseBranch` as argument (e.g., `/toxic-review main`).
 - Present findings: MUST FIX / SHOULD FIX / NIT.
 - **STOP.** Ask user which fixes to apply.
 
@@ -132,9 +150,11 @@ empty `skipReason` means tests were dropped, not waived.
 **On `/bergant-workflow:lifecycle complete CLOSE`:**
 1. Merge PR: `gh pr merge <number> --squash --delete-branch`. If `gh` is unavailable, fall back
    to GitHub MCP `merge_pull_request` and delete the remote branch.
-2. `git checkout master && git pull`.
-3. `git branch -d <branch>`.
+2. `git checkout <baseBranch> && git pull --ff-only`.
+3. `git branch -d <branch>` — the safe form only. Never `-D`: if git refuses because the branch
+   is not merged, that is information, not an obstacle. Report it and stop.
 4. `rm .lifecycle-state.json`.
-5. **Clean up TaskList:** Delete all lifecycle tasks (`[CONTEXT_CHECK]`, `[SCOPE]`, `[PLAN]`, `[COMPONENTS]`, `[IMPLEMENT]`, `[VERIFY]`, `[TEST]`, `[REVIEW]`, `[DOCUMENT]`, `[CLOSE]`) via `TaskUpdate` with `status: "deleted"`.
-6. Update task status in `docs/plan/slice-*.md` (change ⏳ to ✅).
-7. Suggest: `/bergant-workflow:lifecycle next`.
+5. Mark the slice done in `docs/plan/slice-*.md`: change the slice's own status line from
+   `Status: in progress` to `Status: done`. Individual task checkboxes are updated as they are
+   completed, throughout — not here.
+6. Suggest: `/bergant-workflow:lifecycle next`.
