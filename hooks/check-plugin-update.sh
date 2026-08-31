@@ -1,7 +1,9 @@
 #!/bin/bash
-# Helper (not a hook — nothing in hooks.json points here).
 # Prints a one-line update notice on stdout if a newer version of the plugin is published.
-# Called by check-compact-gate.sh when it blocks at the start of a lifecycle.
+# Two callers:
+#   - SessionStart(startup|resume) — wired in hooks.json; stdout lands in the session context,
+#     so the notice arrives once a day at the top of a session, independent of any lifecycle.
+#   - check-compact-gate.sh — appends it to the block that opens a lifecycle.
 #
 # Always exits 0 and stays silent on anything unexpected: no jq, no curl, no network,
 # unreadable manifest, already up to date, or checked within the last 24h. A version
@@ -47,5 +49,5 @@ fi
 
 [ "$LATEST" = "$INSTALLED" ] && exit 0
 
-echo "PLUGIN UPDATE AVAILABLE: bergant-workflow ${INSTALLED} is installed, ${LATEST} is published. Also tell the user, in one line, that they can update with: claude plugin marketplace update bergant-workflow && claude plugin update bergant-workflow (restart required). Do not act on this yourself."
+echo "PLUGIN UPDATE AVAILABLE: bergant-workflow ${INSTALLED} is installed, ${LATEST} is published. Tell the user in one line that they can update with: claude plugin marketplace update bergant-workflow && claude plugin update bergant-workflow (restart required). Do not run it yourself — updating a plugin means running new code on their machine, and that is their call."
 exit 0

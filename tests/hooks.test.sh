@@ -117,5 +117,35 @@ if [ -z "$out" ]; then echo "ok   opt-out env -> silent"; PASS=$((PASS+1))
 else echo "FAIL opt-out -> got: $out"; FAIL=$((FAIL+1)); fi
 
 echo
+echo "# hooks.json wiring"
+WIRING=$("$PY" - "$HOOKS/hooks.json" <<'PYW'
+import json,sys
+d=json.load(open(sys.argv[1]))["hooks"]
+out=[]
+for event,entries in sorted(d.items()):
+    for e in entries:
+        for h in e["hooks"]:
+            out.append(f"{event}:{e.get('matcher','*')}:{h['command'].rsplit('/',1)[-1].rstrip('"')}")
+print("\n".join(sorted(out)))
+PYW
+)
+for want in \
+  "SessionStart:compact:inject-lifecycle-state.sh" \
+  "SessionStart:startup|resume:check-plugin-update.sh" \
+  "PreToolUse:Agent:check-compact-gate.sh" \
+  "Stop:*:check-lifecycle-gate.sh"; do
+  if printf '%s\n' "$WIRING" | grep -qxF "$want"; then
+    echo "ok   wired $want"; PASS=$((PASS+1))
+  else
+    echo "FAIL missing wiring $want"; FAIL=$((FAIL+1))
+  fi
+done
+
+for f in "$HOOKS"/*.sh; do
+  if bash -n "$f" 2>/dev/null; then echo "ok   parses $(basename "$f")"; PASS=$((PASS+1))
+  else echo "FAIL syntax error in $f"; FAIL=$((FAIL+1)); fi
+done
+
+echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
