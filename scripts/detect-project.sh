@@ -38,11 +38,11 @@ if [ -f package.json ] && have jq; then
   TEST=$(first_script test unit "test:unit")
   E2E=$(first_script "test:e2e" e2e playwright cypress)
 
-elif [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f tox.ini ]; then
+elif [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f tox.ini ] || [ -f requirements.txt ]; then
   STACK="python"
   # Declared in config, or a conftest.py sitting there — both are evidence. A tests/ directory
   # on its own is not: plenty of them are run by something other than pytest.
-  if grep -qi "pytest" pyproject.toml setup.cfg tox.ini 2>/dev/null \
+  if grep -qi "pytest" pyproject.toml setup.cfg tox.ini requirements.txt 2>/dev/null \
      || [ -f conftest.py ] || [ -f pytest.ini ] || [ -f tests/conftest.py ]; then
     TEST="pytest"
   fi
@@ -80,6 +80,21 @@ if [ "$STACK" = "node" ] && have jq; then
             | keys | any(test("^(react|vue|svelte|next|nuxt|@angular/core|solid-js)$"))' \
         package.json >/dev/null 2>&1; then
     HAS_UI=true
+  fi
+fi
+
+# What the project *is* changes what testing it well looks like. A Telegram bot's logic is
+# unit-testable like anything else, but the part that actually breaks — the conversation — needs
+# a client driving it. Detected here, offered separately, never silently.
+DOMAIN=""; INTEGRATION=""
+if [ "$STACK" = "node" ] && have jq; then
+  jq -e '((.dependencies // {}) + (.devDependencies // {}))
+         | keys | any(test("^(telegraf|grammy|node-telegram-bot-api|telegram)$"))' \
+     package.json >/dev/null 2>&1 && { DOMAIN="telegram-bot"; INTEGRATION="gramjs"; }
+elif [ "$STACK" = "python" ]; then
+  if grep -qiE "aiogram|python-telegram-bot|pyrogram|telethon" \
+       pyproject.toml requirements.txt setup.cfg 2>/dev/null; then
+    DOMAIN="telegram-bot"; INTEGRATION="telethon"
   fi
 fi
 
@@ -167,7 +182,8 @@ if have jq; then
     --arg build "$BUILD" --arg lint "$LINT" --arg test "$TEST" --arg e2e "$E2E" \
     --arg native "$NATIVE" --arg req "$HAS_REQ" --arg prd "$HAS_PRD" --arg arch "$HAS_ARCH" \
     --arg ds "$HAS_DS" --arg code "$HAS_CODE" --arg entry "$ENTRY" \
-    --arg st "$SUGGEST_TEST" --arg se "$SUGGEST_E2E" --arg si "$SUGGEST_INSTALL" --arg ui "$HAS_UI" '
+    --arg st "$SUGGEST_TEST" --arg se "$SUGGEST_E2E" --arg si "$SUGGEST_INSTALL" --arg ui "$HAS_UI" \
+    --arg dom "$DOMAIN" --arg int "$INTEGRATION" '
     def nn: if . == "" then null else . end;
     {
       stack: $stack,
@@ -180,8 +196,9 @@ if have jq; then
       hasSourceCode: ($code == "true"),
       suggestedEntryPhase: $entry,
       hasUI: ($ui == "true"),
+      domain: ($dom|nn),
       testSetup: (if $st == "" then null else
-        { runner: $st, e2e: ($se|nn), install: ($si|nn) } end)
+        { runner: $st, e2e: ($se|nn), install: ($si|nn), integration: ($int|nn) } end)
     }'
 else
   echo '{"stack":"unknown","packageManager":null,"commands":{},"planCandidates":[],"nativePlan":false,"docs":{},"hasSourceCode":false,"suggestedEntryPhase":"INPUT_VALIDATION","note":"jq unavailable"}'

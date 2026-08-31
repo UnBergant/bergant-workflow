@@ -38,6 +38,31 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
      > needs it, in that branch, through the same review as the code. **My recommendation: yes.**
      > You can also give me the command you already use, or say not now."
 
+     **Name the e2e runner too when `testSetup.e2e` is set.** A UI project's logic tests and its
+     browser tests are two different decisions, and the second is where a front end actually
+     breaks — mentioning only the unit runner drops half the offer:
+     > "The project has a UI, so there's a second layer worth having: `<e2e>` drives a real
+     > browser through the flows a unit test cannot see. Same terms — installed on the first
+     > slice that needs it. It can be a separate yes or no."
+
+     **When `testSetup.integration` is set, offer it as a third, optional layer, with its
+     price.** For a Telegram bot, the part that breaks is the conversation, and only a real
+     client exercises it:
+     > "This looks like a Telegram bot. Unit tests cover your handlers — the functions — but not
+     > the thing that actually breaks: the conversation. `<integration>` is a Telegram *client*
+     > library: it signs in as an ordinary user account and messages your bot the way a person
+     > would, so a test can send `/start`, read what comes back, tap a button and check the next
+     > screen. That is the real way to test a bot, and here is the honest price: it needs a
+     > second Telegram account and API credentials, it talks to Telegram's servers rather than a
+     > local mock, it is slower, and it should not run in CI by default. Worth having, but only
+     > if you want it — say no and the unit layer still stands on its own."
+     Explain what the tool *is* in that much detail every time. The people who most need this
+     offer are the ones who have never heard of the library, and "set up Telethon?" is not a
+     question they can answer.
+     Record it as `"integrationTest": "<tool>"` if accepted. Never set it up unasked. Credentials
+     go in the environment, never in the repository — and the pre-commit secret scan at REVIEW
+     treats a leaked session string or API hash the same as any other secret.
+
      Record the answer:
      - accepted → `"testSetupAccepted": "<runner>"`
      - they gave their own → put it straight in `commands.test`

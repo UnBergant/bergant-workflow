@@ -78,8 +78,12 @@ and writes `.bergant-workflow.json`, which is committed with the project.
 
 **If the project has no tests, it offers to add them.** That is the common case, and working out
 how to start testing is a large part of what this is for — so adoption names a runner that fits
-the stack (Vitest, pytest, `go test`, `cargo test`) and asks. It recommends
-yes, and says what that costs — one dev dependency and a config file — because the person
+the stack (Vitest, pytest, `go test`, `cargo test`) and asks. It also names the
+browser runner when the project has a UI, and — when it can tell what the project *is* — the
+integration path that actually exercises it: a Telegram bot's handlers are unit-testable, but
+its conversation only breaks in front of a real client, so `telethon` or `gramjs` is offered as
+a separate, optional layer with its real price named (an account, credentials, not for CI). It
+recommends yes on the unit runner, and says what that costs — one dev dependency and a config file — because the person
 reading may not know the runner. Say yes and the first slice that needs tests installs it, in
 that branch, through the same review as everything else.
 

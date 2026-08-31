@@ -4,6 +4,33 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] — 2026-08-31
+
+### Added
+- **The test offer names every layer the project needs, not just the first one.** Detection
+  already reported an e2e runner for UI projects and the offer dropped it, so a front end got
+  offered unit tests and nothing that drives a browser — which is where a front end actually
+  breaks. The e2e runner is now offered as its own yes or no.
+- **What the project *is* changes what testing it means.** A Telegram bot's handlers are
+  unit-testable; its conversation is not. Detection recognises a bot from its dependencies
+  (`aiogram`, `python-telegram-bot`, `pyrogram`, `telethon`, `telegraf`, `grammy`,
+  `node-telegram-bot-api`, `gramjs`) and reports `domain` plus an integration path — `telethon`
+  for Python, `gramjs` for Node. It is offered as a third, optional layer, with its price said
+  out loud: a second account, API credentials, real servers, slower, not for CI by default.
+- The offer explains what the tool *is* — a client library that signs in as an ordinary user and
+  messages the bot like a person would. The people who most need this offer are the ones who
+  have never heard of the library, and "set up Telethon?" is not a question they can answer.
+- Python detection reads `requirements.txt`, not only `pyproject.toml`.
+
+### Fixed
+- **The version tests were not hermetic.** They fetched the real published manifest, so the
+  live release overrode the fixture: they passed only while the actual version happened to
+  agree with them, and broke the moment it did not. `curl` is stubbed out of every case that is
+  not deliberately testing the network — which also removes the live requests the suite made on
+  every run.
+
+106 test cases.
+
 ## [0.11.0] — 2026-08-31
 
 ### Added
