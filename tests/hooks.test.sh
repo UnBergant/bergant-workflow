@@ -118,17 +118,19 @@ else echo "FAIL opt-out -> got: $out"; FAIL=$((FAIL+1)); fi
 
 echo
 echo "# hooks.json wiring"
-WIRING=$("$PY" - "$HOOKS/hooks.json" <<'PYW'
-import json,sys
-d=json.load(open(sys.argv[1]))["hooks"]
-out=[]
-for event,entries in sorted(d.items()):
+cat > "$WORK/wiring.py" <<'PYW'
+import json, sys
+d = json.load(open(sys.argv[1]))["hooks"]
+out = []
+for event, entries in sorted(d.items()):
     for e in entries:
         for h in e["hooks"]:
-            out.append(f"{event}:{e.get('matcher','*')}:{h['command'].rsplit('/',1)[-1].rstrip('"')}")
+            script = h["command"].rsplit("/", 1)[-1].strip('"')
+            out.append(event + ":" + e.get("matcher", "*") + ":" + script)
 print("\n".join(sorted(out)))
 PYW
-)
+WIRING=$("$PY" "$WORK/wiring.py" "$HOOKS/hooks.json")
+
 for want in \
   "SessionStart:compact:inject-lifecycle-state.sh" \
   "SessionStart:startup|resume:check-plugin-update.sh" \
