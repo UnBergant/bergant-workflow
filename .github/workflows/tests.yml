@@ -1,0 +1,68 @@
+name: tests
+
+# Reusable body shared by the three per-platform workflows. They exist as separate workflows
+# only because a GitHub badge reports the status of a whole workflow — there is no per-job
+# badge, and "the hooks pass here" is worth knowing per platform.
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: Runner to execute the suite on
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ${{ inputs.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: jq is available
+        run: |
+          if ! jq --version >/dev/null 2>&1; then
+            echo "jq missing, installing"
+            if command -v choco >/dev/null; then choco install jq -y --no-progress
+            elif command -v apt-get >/dev/null; then sudo apt-get install -y jq
+            else brew install jq; fi
+          fi
+          jq --version
+
+      - name: manifests are consistent
+        # The plugin cache is keyed by version, so a version that disagrees with the changelog
+        # ships as a release nobody can tell apart from the previous one.
+        run: |
+          set -e
+          jq -e . .claude-plugin/plugin.json > /dev/null
+          jq -e . .claude-plugin/marketplace.json > /dev/null
+          jq -e . hooks/hooks.json > /dev/null
+
+          manifest=$(jq -r .version .claude-plugin/plugin.json)
+          changelog=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ')
+          echo "plugin.json: $manifest / CHANGELOG: $changelog"
+          [ "$manifest" = "$changelog" ] || { echo "::error::version mismatch"; exit 1; }
+
+          # Every hook the manifest wires must actually exist.
+          jq -r '.hooks[][].hooks[].command' hooks/hooks.json |
+            sed 's|.*/hooks/||; s|"$||' | while read -r script; do
+              [ -f "hooks/$script" ] || { echo "::error::hooks.json points at missing hooks/$script"; exit 1; }
+              echo "wired script present: $script"
+            done
+
+      - name: shell scripts are LF
+        # A CRLF checkout makes bash exit 2 on a syntax error, which these hooks read as
+        # "block" — the plugin stops working entirely. .gitattributes must prevent it even
+        # here, where Windows would otherwise translate on checkout.
+        run: |
+          fail=0
+          for f in hooks/*.sh tests/*.sh; do
+            if ! tr -d '\r' < "$f" | cmp -s - "$f"; then echo "CRLF found in $f"; fail=1; fi
+          done
+          [ "$fail" -eq 0 ] && echo "all shell scripts are LF"
+          exit $fail
+
+      - name: hook behaviour
+        run: bash tests/hooks.test.sh

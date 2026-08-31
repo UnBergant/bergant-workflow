@@ -1,6 +1,6 @@
 # bergant-workflow
 
-[![hooks](https://github.com/UnBergant/bergant-workflow/actions/workflows/hooks.yml/badge.svg)](https://github.com/UnBergant/bergant-workflow/actions/workflows/hooks.yml)
+[![linux](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-linux.yml/badge.svg)](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-linux.yml) [![macos](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-macos.yml/badge.svg)](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-macos.yml) [![windows](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-windows.yml/badge.svg)](https://github.com/UnBergant/bergant-workflow/actions/workflows/tests-windows.yml)
 
 A Claude Code plugin that makes a long feature survive a long session.
 
