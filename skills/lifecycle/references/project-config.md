@@ -3,6 +3,8 @@
 Written once by `ADOPT`, committed with the project. It describes the repository, not a run:
 the state file is per-task and disappears at `CLOSE`, this one stays.
 
+A minimal one, for a project that already had everything:
+
 ```json
 {
   "commands": {
@@ -15,6 +17,29 @@ the state file is per-task and disappears at `CLOSE`, this one stays.
   "adoptedAt": "2026-08-31T14:00:00Z"
 }
 ```
+
+And one carrying every field this file can hold — a Telegram bot with no tests yet, whose owner
+accepted the runner and the integration layer:
+
+```json
+{
+  "commands": {
+    "build": null,
+    "lint": "ruff check .",
+    "test": null,
+    "e2e": null,
+    "storybook": null
+  },
+  "planGlob": null,
+  "testSetupAccepted": "pytest",
+  "integrationTest": "telethon",
+  "adoptedFrom": "empty",
+  "adoptedAt": "2026-08-31T14:00:00Z"
+}
+```
+
+`testSetupDeclined` appears instead of `testSetupAccepted` when the offer was turned down —
+`"once"` after the first no, `"always"` after the second.
 
 | Field | Meaning |
 |-------|---------|
