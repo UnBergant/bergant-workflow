@@ -254,6 +254,21 @@ detect loose '.nativePlan' false
 detect loose '.planCandidates | length' 1
 detect loose '.planCandidates[0].path' PLAN.md
 
+# What an existing project-init run left behind decides where a new one should enter.
+mkdir -p "$WORK/fx/hasarch/docs" "$WORK/fx/hasprd/docs" "$WORK/fx/code/src"
+touch "$WORK/fx/hasarch/docs/REQUIREMENTS.md" "$WORK/fx/hasarch/docs/prd.md" "$WORK/fx/hasarch/docs/architecture.md"
+detect hasarch '.suggestedEntryPhase' PLANNING
+detect hasarch '.docs.architecture' true
+
+touch "$WORK/fx/hasprd/docs/REQUIREMENTS.md" "$WORK/fx/hasprd/docs/prd.md"
+detect hasprd '.suggestedEntryPhase' ARCHITECTURE
+
+touch "$WORK/fx/code/src/main.ts"
+detect code '.hasSourceCode' true
+detect code '.suggestedEntryPhase' INPUT_VALIDATION
+
+detect empty '.hasSourceCode' false
+detect empty '.suggestedEntryPhase' INPUT_VALIDATION
 detect empty '.stack' unknown
 detect empty '.commands.test' null
 detect empty '.planCandidates | length' 0

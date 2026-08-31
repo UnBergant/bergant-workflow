@@ -66,14 +66,28 @@ You manage the spec-to-documentation framework. State persists in `docs/spec-sta
 ### `start <spec> [--from <phase>]` — Initialize
 
 `<spec>` can be: file path, inline text, or nothing (will ask).
-`--from <phase>` optionally starts from a later phase (case-insensitive). Use when the user already has artifacts for earlier phases.
+`--from <phase>` starts from a later phase (case-insensitive). **The user is not expected to
+know this flag exists** — step 0 works out whether it applies and proposes it.
 
+0. **Look at the project before assuming it is empty.** Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project.sh"` and read `docs`, `hasSourceCode`
+   and `suggestedEntryPhase`. Then say what you found and recommend, once:
+   - `suggestedEntryPhase` is later than `INPUT_VALIDATION` → earlier artifacts already exist.
+     Recommend `--from <that phase>`, naming the documents that made you say so.
+   - `hasSourceCode: true` with no documents → the architecture questions are already answered
+     in the code, and re-deriving them from a spec produces a document that argues with the
+     repository. Recommend entering at `PLANNING`, and say plainly that for a single task
+     `project-init` is the wrong tool: `/bergant-workflow:lifecycle start <task>` adopts the
+     project and needs no plan document.
+   - Neither → a genuinely new project, run the full sequence.
+   **Recommend, never decide.** Skipping a phase silently is how a plan ends up resting on a
+   PRD nobody wrote. The user confirms, and prior phases are then marked `"pre-existing"`.
 1. Check if `docs/spec-state.json` exists with incomplete phases. If so, warn and ask to override.
 2. Read the spec:
    - File path → Read tool
    - Inline text → use as-is
    - Nothing provided → ask user to provide spec
-3. If `--from` is specified:
+3. If `--from` is specified (by the user, or accepted from the step 0 recommendation):
    - Map required docs per phase: PRD needs `docs/REQUIREMENTS.md`; ARCHITECTURE needs REQUIREMENTS + `docs/prd.md`; PLANNING needs all three; etc.
    - Verify the required docs exist for all prior phases
    - If docs are missing, warn and ask user to provide them or start from the beginning

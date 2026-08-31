@@ -51,7 +51,7 @@ about whether you need the first one at all — usually you do not.
 |----------|-----|-----|
 | A spec and an empty repository | `project-init start docs/spec.md`, then `lifecycle next` | The full path: requirements → PRD → architecture → plan → slices, five user gates on the way |
 | An existing project and a concrete task | `lifecycle start <task>` — nothing else | Adoption runs first and learns the project. `project-init` would write a PRD and an architecture document for a codebase that already has both, in code |
-| An existing project and a large new feature to think through | `project-init start <spec> --from PLANNING`, then `lifecycle next` | `--from` enters at a later phase, so the phases whose answers already exist are skipped. Phases: `INPUT_VALIDATION` → `PRD` → `ARCHITECTURE` → `PLANNING` → `DECOMPOSITION` → `FINALIZE` |
+| An existing project and a large new feature to think through | `project-init start <spec>` | It looks at the repository first and recommends where to enter — you do not need to know that `--from` exists. Phases: `INPUT_VALIDATION` → `PRD` → `ARCHITECTURE` → `PLANNING` → `DECOMPOSITION` → `FINALIZE` |
 | An existing project and its own plan format | `lifecycle start <task>` | Adoption records where your plan lives in `planGlob`; the slice format is not required |
 | A task you can describe in two sentences | `lifecycle start <task>` | No plan document needed. SCOPE is the gate where you pin down what it means |
 

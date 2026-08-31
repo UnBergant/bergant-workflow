@@ -69,6 +69,29 @@ if [ -f Makefile ]; then
   [ -z "$E2E" ]   && E2E=$(target e2e)
 fi
 
+# Documents an earlier project-init run (or a human) already produced. Their presence is what
+# decides where a new run should enter, so it is reported rather than left to be guessed at.
+doc() { [ -f "$1" ] && echo true || echo false; }
+HAS_REQ=$(doc docs/REQUIREMENTS.md)
+HAS_PRD=$(doc docs/prd.md)
+HAS_ARCH=$(doc docs/architecture.md)
+HAS_DS=$(doc docs/design-system.md)
+
+# Is there a codebase already? Source files outside docs/ mean the architecture questions have
+# been answered in code, whatever the documents say.
+HAS_CODE=false
+for d in src app lib pkg cmd internal server client packages services; do
+  [ -d "$d" ] && { HAS_CODE=true; break; }
+done
+if [ "$HAS_CODE" = "false" ] && [ "$STACK" != "unknown" ]; then HAS_CODE=true; fi
+
+# The phase a fresh project-init run should enter at, given what already exists.
+ENTRY="INPUT_VALIDATION"
+if   [ "$HAS_ARCH" = "true" ]; then ENTRY="PLANNING"
+elif [ "$HAS_PRD"  = "true" ]; then ENTRY="ARCHITECTURE"
+elif [ "$HAS_REQ"  = "true" ]; then ENTRY="PRD"
+fi
+
 # Plan documents. The plugin's own format wins outright; everything else is a suggestion for
 # the user to confirm, never something to act on unasked.
 CANDIDATES=""
@@ -102,16 +125,21 @@ CANDIDATES=$(printf '%s' "$CANDIDATES" | grep -v '^$' | sort -u |
 if have jq; then
   printf '%s' "$CANDIDATES" | jq -R -s --arg stack "$STACK" --arg pm "$PM" \
     --arg build "$BUILD" --arg lint "$LINT" --arg test "$TEST" --arg e2e "$E2E" \
-    --arg native "$NATIVE" '
+    --arg native "$NATIVE" --arg req "$HAS_REQ" --arg prd "$HAS_PRD" --arg arch "$HAS_ARCH" \
+    --arg ds "$HAS_DS" --arg code "$HAS_CODE" --arg entry "$ENTRY" '
     def nn: if . == "" then null else . end;
     {
       stack: $stack,
       packageManager: ($pm | if . == "null" then null else . end),
       commands: { build: ($build|nn), lint: ($lint|nn), test: ($test|nn), e2e: ($e2e|nn) },
       planCandidates: (split("\n") | map(select(length > 0)) | map(split("|") | {path: .[0], native: (.[1] == "true")})),
-      nativePlan: ($native == "true")
+      nativePlan: ($native == "true"),
+      docs: { requirements: ($req == "true"), prd: ($prd == "true"),
+              architecture: ($arch == "true"), designSystem: ($ds == "true") },
+      hasSourceCode: ($code == "true"),
+      suggestedEntryPhase: $entry
     }'
 else
-  echo '{"stack":"unknown","packageManager":null,"commands":{},"planCandidates":[],"nativePlan":false,"note":"jq unavailable"}'
+  echo '{"stack":"unknown","packageManager":null,"commands":{},"planCandidates":[],"nativePlan":false,"docs":{},"hasSourceCode":false,"suggestedEntryPhase":"INPUT_VALIDATION","note":"jq unavailable"}'
 fi
 exit 0
