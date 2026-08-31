@@ -109,7 +109,19 @@ Read `docs/REQUIREMENTS.md` first.
 - Identify legal risks relevant to the project (data privacy, platform ToS, industry regulations, liability)
 - Research applicable regulations based on target market/users (GDPR, CCPA, industry-specific)
 - If WebSearch is available → launch `Agent(general-purpose)` to research current legal requirements for the domain
-- Present risks as a table: risk | impact | what's needed for MVP | what can wait
+- **Sourcing rules — these are not optional.** A regulatory claim written into a PRD reads as
+  settled fact for the rest of the project, so it has to carry its evidence:
+  - **Name the jurisdiction.** "GDPR applies" is not a finding; "EU users, so GDPR applies"
+    is. If the target market has not been decided, say so and stop — the answer depends on it.
+  - **Cite a primary source.** The regulation, the official guidance, or the platform's own
+    terms page. Not a blog post, not a summary site, not recall. Include the URL.
+  - **Date every claim** with the date it was checked, in the document itself.
+  - If WebSearch is unavailable or a claim cannot be sourced, write it as
+    `UNVERIFIED — needs checking` rather than dropping it or stating it plainly. An unverified
+    risk is still worth listing; an unsourced one dressed as fact is not.
+  - **Nothing here is legal advice.** Every legal item carries a note that it needs sign-off
+    from an actual lawyer before launch. Do not let the PRD imply the question is closed.
+- Present risks as a table: risk | jurisdiction | source + date checked | impact | what's needed for MVP | what can wait
 - Ask user which items to include as MVP requirements vs post-MVP
 - Add approved items to PRD as "Legal & Compliance Requirements" section
 
@@ -150,10 +162,15 @@ Read `docs/REQUIREMENTS.md` first.
 <main user journeys — numbered steps>
 
 ## Legal & Compliance Requirements
+
+> Not legal advice. Every item below needs sign-off from a qualified lawyer for the relevant
+> jurisdiction before launch. Each entry records where it came from and when it was checked.
+
 ### MVP
-<items needed before real users — data privacy, platform rules, disclaimers>
+<items needed before real users — data privacy, platform rules, disclaimers.
+Format: requirement — jurisdiction — source URL — checked YYYY-MM-DD>
 ### Post-MVP
-<items needed before scaling — DPAs, detailed legal review, tax compliance>
+<items needed before scaling — DPAs, detailed legal review, tax compliance. Same format.>
 
 ## Success Metrics
 <measurable criteria>
@@ -305,8 +322,13 @@ This step produces design system documentation (`docs/design-system.md`, `docs/d
 # Design System
 
 ## Frontend Stack
-| Layer | Technology | Version |
-|-------|-----------|---------|
+| Layer | Technology | Version | Verified against | Checked |
+|-------|-----------|---------|------------------|---------|
+
+<A pinned version is a claim about the world on a given day. Take it from the registry or the
+project's own release page — npm, PyPI, the GitHub releases feed — never from memory, and
+record which one and when. If you cannot check, write `unpinned` rather than guessing a number:
+a wrong version in an architecture document survives for months and gets copied into installs.>
 
 ## Design Tokens
 
@@ -452,8 +474,11 @@ Wireframes MUST be approved before page implementation begins.
 <key endpoints with contracts>
 
 ## Technology Stack
-| Layer | Technology | Version | Why |
-|-------|-----------|---------|-----|
+| Layer | Technology | Version | Why | Verified against | Checked |
+|-------|-----------|---------|-----|------------------|---------|
+
+<Same rule as the design system: versions come from the registry or the release page with the
+date they were checked, or they say `unpinned`. "Latest" is not a version.>
 
 ## Deployment & Infrastructure
 <hosting, CI/CD, environments, monitoring>

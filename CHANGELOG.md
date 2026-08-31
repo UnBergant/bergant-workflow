@@ -4,6 +4,33 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-08-31
+
+The two audit findings deferred from 0.6.0.
+
+### Fixed
+- **The compact gate now covers the edit tools, not just agent launches** (audit P1-1). The
+  bypass was reproduced live: with `awaitingCompact: true`, a `Write` call created a file and
+  the hook never ran. The matcher is now
+  `Agent|Task|Edit|MultiEdit|Write|NotebookEdit`. `Bash` is deliberately excluded — reading
+  logs, running tests and checking `git status` while deciding whether to compact is not what
+  is being gated, and blocking all of it would trade a working session for context hygiene.
+  The gate protects the *main* session's context; subagents have their own, which is why
+  agent launches and direct edits are the two things worth stopping.
+
+### Added
+- `/bergant-workflow:lifecycle skip-compact` — the deliberate way through. It clears the flag
+  and records `compactSkippedAt` and `compactSkippedBefore`, so a skip is a decision in the
+  record rather than a hole. The skill is instructed never to run it unasked; the block message
+  offers it to the user, not to itself.
+- **Sourcing contract for `project-init`** (audit P2-5). Legal and compliance findings must
+  name the jurisdiction, cite a primary source with a URL, and carry the date they were
+  checked; unsourced ones are written as `UNVERIFIED — needs checking` rather than stated
+  plainly, and the whole section is marked as needing a lawyer's sign-off. Version tables in
+  the architecture and design-system documents gained "verified against" and "checked" columns:
+  a pinned version comes from the registry or a release page on a given day, or it says
+  `unpinned`. "Latest" is not a version.
+
 ## [0.6.0] — 2026-08-31
 
 Remediation of an external audit of `v0.2.0` by the author of a Codex port. Their findings are

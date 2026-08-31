@@ -70,6 +70,7 @@ Display a formatted table:
 | `advance` | Move to next step (validates current is completed, respects gates). |
 | `complete <step>` | User confirms a gate. Marks step completed, advances. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |
+| `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. |
 | `next` | Read `docs/plan/slice-*.md` files, find first ⏳ task in the lowest incomplete slice, run `start` on it. |
 
 ## State File Location

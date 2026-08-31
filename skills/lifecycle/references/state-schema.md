@@ -65,6 +65,8 @@ These fields survive `/compact` and give the next session enough semantic anchor
 | Field | Type | Set when | Purpose |
 |-------|------|----------|---------|
 | `scopeApprovedAt` | ISO timestamp | User runs `/bergant-workflow:lifecycle complete SCOPE` | Proof that SCOPE gate passed; ordering |
+| `compactSkippedAt` | ISO timestamp | User runs `/bergant-workflow:lifecycle skip-compact` | Records that the compact gate was passed by an explicit decision rather than a compact |
+| `compactSkippedBefore` | string | Same | Which step the skip applied to |
 | `codexOpinionIncorporated` | boolean | `/toxic-opinion` ran during SCOPE and findings merged into approved scope | Guards against re-asking Codex post-compact |
 | `codexFindings` | string[] | Approved SCOPE — distill Codex second-opinion diffs into short semantic tags | Each tag = anchor to rehydrate full context in PLAN (e.g., `"schema_enum_fix_required"`, `"split_transactions"`) |
 | `scopeNotes.approvedScope` | string[] | Approved SCOPE | Bullet list of concrete scope items the user confirmed; source of truth for PLAN and IMPLEMENT |
