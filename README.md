@@ -35,14 +35,17 @@ frontend it defaults to an FSD-lite layout with Biome, Tailwind, shadcn and Radi
 point of the plugin is to remove decisions from every task. Those defaults are React-shaped;
 everything else in it — requirements, PRD, architecture, slicing — is not.
 
-If those defaults are wrong for you, **fork it and change them**: the enforcement layer (the
-hooks, the state file, the ten steps, the gates) has nothing framework-specific in it, and the
-opinions live in `skills/project-init/references/phases.md`.
+If those defaults are wrong for you, **open a pull request** rather than a fork. The enforcement
+layer — the hooks, the state file, the ten steps, the gates — has nothing framework-specific in
+it; the opinions live in `skills/project-init/references/phases.md` and the toolchain in
+`skills/lifecycle/references/steps.md`. A stack this does not handle well is a gap in the
+plugin, not a reason to keep the fix to yourself, and adoption already makes most of that
+addition small: teach `scripts/detect-project.sh` to recognise the stack, and the rest follows.
 
-If your fork touches the hooks, run `bash tests/hooks.test.sh` (the suite behind the badges —
+If your change touches the hooks, run `bash tests/hooks.test.sh` (the suite behind the badges —
 `bash`, `jq` and Python, about a second). A broken hook does not fail loudly: without `jq` it
 allows everything, and with CRLF line endings it blocks everything. On macOS run it once with
-`/bin/bash`, which is 3.2 — that is what CI uses, and it parses differently from Homebrew's.
+`/bin/bash`, which is 3.2 — that is what CI runs, and it parses differently from Homebrew's.
 
 ## Which skill do I run?
 
