@@ -237,7 +237,6 @@ install:
 | `check-compact-gate.sh` | `PreToolUse(Agent\|Task\|Edit\|Write\|…)` | Blocks agent launches and edits while `awaitingCompact: true` — forces a `/compact` before the heavy steps. `Bash` is not matched |
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
 | `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
-
 | `check-plugin-update.sh` | `SessionStart(startup\|resume)` | Prints the update notice described under [Update](#update) — at most once a day, silent when current |
 
 `check-plugin-update.sh` has two callers: the `SessionStart` wiring above, and the compact gate,
