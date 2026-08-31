@@ -36,6 +36,11 @@ stack is different, **fork it and change the commands**: the enforcement layer (
 state file, the ten steps, the gates) has nothing React-specific in it, and the toolchain lives
 in `skills/lifecycle/references/steps.md` and `skills/project-init/references/phases.md`.
 
+If your fork touches the hooks, run `bash tests/hooks.test.sh` (the suite behind the badges —
+`bash`, `jq` and Python, about a second). A broken hook does not fail loudly: without `jq` it
+allows everything, and with CRLF line endings it blocks everything. On macOS run it once with
+`/bin/bash`, which is 3.2 — that is what CI uses, and it parses differently from Homebrew's.
+
 ## What's in the box
 
 | Component | Type | What it does |
@@ -319,19 +324,6 @@ bergant-workflow/
 ├── LICENSE
 └── README.md
 ```
-
-## Running the tests
-
-The badges above come from `tests/hooks.test.sh`, which needs nothing but `bash`, `jq` and
-Python:
-
-```
-bash tests/hooks.test.sh
-```
-
-Each case builds a state file, runs one hook against it, and asserts the exit code and the
-message — exit `2` blocks, exit `0` allows. On macOS run it with `/bin/bash` at least once
-before pushing: that is bash 3.2, and CI runs it there.
 
 ## Uninstall
 
