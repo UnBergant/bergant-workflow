@@ -69,8 +69,18 @@ state CONTEXT_CHECK=completed SCOPE=completed PLAN=completed COMPONENTS=complete
       IMPLEMENT=completed VERIFY=in_progress TEST=in_progress
 check "user gate skipped -> GATE VIOLATION" 2 "LIFECYCLE GATE VIOLATION" check-lifecycle-gate.sh
 
-state CONTEXT_CHECK=in_progress SCOPE=completed
+state @currentStep=CONTEXT_CHECK CONTEXT_CHECK=in_progress SCOPE=completed
 check "start --skip-scope -> allow" 0 EMPTY check-lifecycle-gate.sh
+
+# A step the run walked away from is the realistic way one disappears: it is marked
+# in_progress on entry, then the run moves on. Only the step named by currentStep is exempt.
+state @currentStep=REVIEW CONTEXT_CHECK=completed SCOPE=completed PLAN=completed \
+      COMPONENTS=completed IMPLEMENT=completed VERIFY=completed TEST=in_progress REVIEW=completed
+check "TEST abandoned in_progress -> ORDER VIOLATION" 2 "LIFECYCLE ORDER VIOLATION" check-lifecycle-gate.sh
+
+state @currentStep=TEST CONTEXT_CHECK=completed SCOPE=completed PLAN=completed \
+      COMPONENTS=completed IMPLEMENT=completed VERIFY=completed TEST=in_progress
+check "TEST in_progress and current -> allow" 0 EMPTY check-lifecycle-gate.sh
 
 state CONTEXT_CHECK=completed SCOPE=completed PLAN=completed COMPONENTS=completed \
       IMPLEMENT=completed VERIFY=completed REVIEW=in_progress
@@ -112,10 +122,16 @@ mkdir -p "$FAKE/.claude/plugins/marketplaces/bergant-workflow/.claude-plugin" "$
 echo '{"version":"9.9.9"}' > "$FAKE/.claude/plugins/marketplaces/bergant-workflow/.claude-plugin/plugin.json"
 echo '{"version":"0.0.1"}' > "$WORK/installed/.claude-plugin/plugin.json"
 
-out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
-      bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
-mkdir -p "$WORK/t1"
-out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+# The throttle stamp lives under $HOME, so each case gets its own copy of the fake home.
+fresh_home() {
+  rm -rf "$WORK/home-$1"
+  mkdir -p "$WORK/home-$1/.claude/plugins/marketplaces/bergant-workflow/.claude-plugin"
+  echo '{"version":"9.9.9"}' > "$WORK/home-$1/.claude/plugins/marketplaces/bergant-workflow/.claude-plugin/plugin.json"
+  printf '%s' "$WORK/home-$1"
+}
+
+H1=$(fresh_home 1)
+out=$(HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       bash "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 case "$out" in
   *"0.0.1 is installed, 9.9.9 is published"*) echo "ok   --text -> plain line names both versions"; PASS=$((PASS+1)) ;;
@@ -125,7 +141,8 @@ esac
 # SessionStart shape: the CLI only shows the user what is in systemMessage, so assert both
 # fields rather than just "some output happened".
 mkdir -p "$WORK/t3"
-out=$(HOME="$FAKE" TMPDIR="$WORK/t3" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+H3=$(fresh_home 3)
+out=$(HOME="$H3" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 sysmsg=$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)
 ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
@@ -140,13 +157,14 @@ case "$sysmsg" in
   *) echo "FAIL systemMessage -> got: ${sysmsg:-<empty>}"; FAIL=$((FAIL+1)) ;;
 esac
 
-out=$(HOME="$FAKE" TMPDIR="$WORK/t1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
+out=$(HOME="$H1" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
       bash "$HOOKS/check-plugin-update.sh" --text 2>/dev/null)
 if [ -z "$out" ]; then echo "ok   second run same day -> throttled"; PASS=$((PASS+1))
 else echo "FAIL throttle -> got: $out"; FAIL=$((FAIL+1)); fi
 
 mkdir -p "$WORK/t2"
-out=$(BERGANT_WORKFLOW_NO_UPDATE_CHECK=1 HOME="$FAKE" TMPDIR="$WORK/t2" \
+H2=$(fresh_home 2)
+out=$(BERGANT_WORKFLOW_NO_UPDATE_CHECK=1 HOME="$H2" \
       CLAUDE_PLUGIN_ROOT="$WORK/installed" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 if [ -z "$out" ]; then echo "ok   opt-out env -> silent"; PASS=$((PASS+1))
 else echo "FAIL opt-out -> got: $out"; FAIL=$((FAIL+1)); fi
@@ -187,7 +205,8 @@ printf '#!/bin/sh\nexit 1\n' > "$NOJQ/jq"
 chmod +x "$NOJQ/jq"
 state CONTEXT_CHECK=in_progress
 mkdir -p "$WORK/t4"
-out=$(PATH="$NOJQ:$PATH" TMPDIR="$WORK/t4" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+H4=$(fresh_home 4)
+out=$(PATH="$NOJQ:$PATH" HOME="$H4" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 case "$out" in
   *"NOT being enforced"*) echo "ok   broken jq + active lifecycle -> warns the user"; PASS=$((PASS+1)) ;;
   *) echo "FAIL no jq warning -> got: ${out:-<empty>}"; FAIL=$((FAIL+1)) ;;
@@ -195,7 +214,8 @@ esac
 
 rm -f .lifecycle-state.json
 mkdir -p "$WORK/t5"
-out=$(PATH="$NOJQ:$PATH" TMPDIR="$WORK/t5" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
+H5=$(fresh_home 5)
+out=$(PATH="$NOJQ:$PATH" HOME="$H5" bash "$HOOKS/check-plugin-update.sh" 2>/dev/null)
 if [ -z "$out" ]; then echo "ok   broken jq, no lifecycle -> silent"; PASS=$((PASS+1))
 else echo "FAIL no jq without lifecycle -> got: $out"; FAIL=$((FAIL+1)); fi
 
@@ -262,6 +282,11 @@ detect hasarch '.docs.architecture' true
 
 touch "$WORK/fx/hasprd/docs/REQUIREMENTS.md" "$WORK/fx/hasprd/docs/prd.md"
 detect hasprd '.suggestedEntryPhase' ARCHITECTURE
+
+mkdir -p "$WORK/fx/planned/docs/plan"
+touch "$WORK/fx/planned/docs/REQUIREMENTS.md" "$WORK/fx/planned/docs/prd.md" \
+      "$WORK/fx/planned/docs/architecture.md" "$WORK/fx/planned/docs/plan/phase-0.md"
+detect planned '.suggestedEntryPhase' DECOMPOSITION
 
 touch "$WORK/fx/code/src/main.ts"
 detect code '.hasSourceCode' true

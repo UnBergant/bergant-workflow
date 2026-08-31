@@ -41,14 +41,22 @@ INSTALLED=$(jq -r '.version // empty' "$ROOT/.claude-plugin/plugin.json" 2>/dev/
 [ -n "$INSTALLED" ] || exit 0
 
 # Throttle to once a day. The stamp is disposable — losing it costs one extra check.
-STAMP="${TMPDIR:-/tmp}/bergant-workflow-update-check"
+# It lives under the user's own cache directory rather than a fixed name in a shared /tmp,
+# where anyone could pre-create it as a symlink and have this hook truncate the target.
+if [ -n "$HOME" ] && mkdir -p "$HOME/.cache/bergant-workflow" 2>/dev/null; then
+  STAMP="$HOME/.cache/bergant-workflow/update-check"
+else
+  STAMP="${TMPDIR:-/tmp}/bergant-workflow-update-check-$(id -u 2>/dev/null || echo 0)"
+fi
+# Never follow a symlink here: writing through one is how a stamp turns into a file clobber.
+[ -L "$STAMP" ] && exit 0
 NOW=$(date +%s)
 if [ -f "$STAMP" ]; then
   LAST=$(head -1 "$STAMP" 2>/dev/null)
   case "$LAST" in ''|*[!0-9]*) LAST=0 ;; esac
   [ $((NOW - LAST)) -lt 86400 ] && exit 0
 fi
-echo "$NOW" > "$STAMP" 2>/dev/null
+{ echo "$NOW" > "$STAMP"; } 2>/dev/null
 
 LATEST="$INSTALLED"
 newest() { printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1; }
@@ -58,6 +66,7 @@ newest() { printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1; }
 MP="$HOME/.claude/plugins/marketplaces/bergant-workflow/.claude-plugin/plugin.json"
 if [ -f "$MP" ]; then
   V=$(jq -r '.version // empty' "$MP" 2>/dev/null)
+  case "$V" in ''|*[!0-9.]*) V="" ;; esac
   [ -n "$V" ] && LATEST=$(newest "$LATEST" "$V")
 fi
 
@@ -66,6 +75,7 @@ if command -v curl >/dev/null 2>&1; then
   V=$(curl -fsS --max-time 3 \
     https://raw.githubusercontent.com/UnBergant/bergant-workflow/main/.claude-plugin/plugin.json \
     2>/dev/null | jq -r '.version // empty' 2>/dev/null)
+  case "$V" in ''|*[!0-9.]*) V="" ;; esac
   [ -n "$V" ] && LATEST=$(newest "$LATEST" "$V")
 fi
 

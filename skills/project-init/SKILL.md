@@ -3,7 +3,7 @@ name: project-init
 description: Framework for creating project documentation from specs — reviews, research, architecture, planning, task decomposition into slices, and optional Jira sync. Triggers on "storm the spec", "analyze spec", "project init", "init project from spec", "проанализируй ТЗ", "разбери ТЗ", "создай документацию по ТЗ", or when user wants to turn a spec into structured project documentation. Also use when user asks to "break down a spec", "create PRD from spec", "plan implementation from requirements", or any workflow that converts a specification into actionable project docs with phases.
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Agent, Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Agent, Task, Read, Write, Edit, Bash, Glob, Grep
 argument-hint: "[start <spec-file> [--from <phase>]|status|complete <phase>|recover]"
 ---
 
@@ -29,7 +29,7 @@ Read the project-init skill:
 
 Execute command: $ARGUMENTS
 State file: docs/spec-state.json
-Project root: $CWD
+Project root: !`pwd`
 
 Read existing docs/ artifacts for context before acting.
 Follow all instructions. When you hit a user gate, return findings, options, and what needs discussion. Be concise.

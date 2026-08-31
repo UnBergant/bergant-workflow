@@ -85,20 +85,29 @@ for d in src app lib pkg cmd internal server client packages services; do
 done
 if [ "$HAS_CODE" = "false" ] && [ "$STACK" != "unknown" ]; then HAS_CODE=true; fi
 
+# Planning output already on disk means PLANNING itself is done, not pending.
+HAS_PHASES=false
+for f in docs/plan/phase-*.md; do [ -f "$f" ] && { HAS_PHASES=true; break; }; done
+
 # The phase a fresh project-init run should enter at, given what already exists.
 ENTRY="INPUT_VALIDATION"
-if   [ "$HAS_ARCH" = "true" ]; then ENTRY="PLANNING"
+if   [ "$HAS_PHASES" = "true" ]; then ENTRY="DECOMPOSITION"
+elif [ "$HAS_ARCH" = "true" ]; then ENTRY="PLANNING"
 elif [ "$HAS_PRD"  = "true" ]; then ENTRY="ARCHITECTURE"
 elif [ "$HAS_REQ"  = "true" ]; then ENTRY="PRD"
 fi
 
 # Plan documents. The plugin's own format wins outright; everything else is a suggestion for
 # the user to confirm, never something to act on unasked.
-CANDIDATES=""
+# Candidates are accumulated as JSON objects, one per line. A pipe-delimited string could not
+# survive a filename containing a pipe or a newline — it silently handed back paths that do not
+# exist.
+CAND_FILE=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/bwf-cand.$$")
 NATIVE="false"
 add() {
   case "$(basename "$1" | tr 'A-Z' 'a-z')" in readme.md|changelog.md|license.md) return ;; esac
-  [ -f "$1" ] && CANDIDATES="${CANDIDATES}${1}|${2}"$'\n'
+  [ -f "$1" ] || return
+  jq -nc --arg p "$1" --argjson n "$2" '{path: $p, native: $n}' >> "$CAND_FILE" 2>/dev/null
 }
 
 for f in docs/plan/slice-*.md; do [ -f "$f" ] && { add "$f" true; NATIVE="true"; }; done
@@ -117,13 +126,13 @@ if [ "$NATIVE" = "false" ]; then
   for f in docs/plan/*.md docs/tasks/*.md; do [ -f "$f" ] && add "$f" false; done
 fi
 
-# Case-insensitive dedupe: macOS and Windows filesystems are case-insensitive, so PLAN.md and
-# plan.md are one file matched by two globs, and offering it twice looks broken.
-CANDIDATES=$(printf '%s' "$CANDIDATES" | grep -v '^$' | sort -u |
-  awk '{ k = tolower($0); if (!(k in seen)) { seen[k] = 1; print } }' | head -12)
+# Case-insensitive dedupe by path, capped: a docs directory with fifty files is not a menu
+# anyone can answer.
+CANDIDATES=$(jq -s 'unique_by(.path | ascii_downcase) | .[0:12]' "$CAND_FILE" 2>/dev/null || echo '[]')
+rm -f "$CAND_FILE" 2>/dev/null
 
 if have jq; then
-  printf '%s' "$CANDIDATES" | jq -R -s --arg stack "$STACK" --arg pm "$PM" \
+  printf '%s' "$CANDIDATES" | jq -s --arg stack "$STACK" --arg pm "$PM" \
     --arg build "$BUILD" --arg lint "$LINT" --arg test "$TEST" --arg e2e "$E2E" \
     --arg native "$NATIVE" --arg req "$HAS_REQ" --arg prd "$HAS_PRD" --arg arch "$HAS_ARCH" \
     --arg ds "$HAS_DS" --arg code "$HAS_CODE" --arg entry "$ENTRY" '
@@ -132,7 +141,7 @@ if have jq; then
       stack: $stack,
       packageManager: ($pm | if . == "null" then null else . end),
       commands: { build: ($build|nn), lint: ($lint|nn), test: ($test|nn), e2e: ($e2e|nn) },
-      planCandidates: (split("\n") | map(select(length > 0)) | map(split("|") | {path: .[0], native: (.[1] == "true")})),
+      planCandidates: (.[0] // []),
       nativePlan: ($native == "true"),
       docs: { requirements: ($req == "true"), prd: ($prd == "true"),
               architecture: ($arch == "true"), designSystem: ($ds == "true") },

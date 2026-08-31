@@ -8,13 +8,15 @@
 #
 # Logic: iterate steps in order and remember the first step that is still owed:
 #   - a user gate (gate: "user") is owed until it is "completed" — unchanged behaviour;
-#   - an auto step is owed only while "pending", i.e. it never started.
+#   - an auto step is owed while "pending", and also while "in_progress" unless it is the step
+#     the run is actually on (`currentStep`).
 # If any LATER step is already "in_progress" or "completed", the order was broken → block.
 #
-# Why an auto step must be "pending" and not merely un-completed: `start --skip-scope`
-# writes CONTEXT_CHECK "in_progress" with SCOPE already "completed", and the run legitimately
-# stops there to ask for /compact. Blocking on an in-progress auto step would fire on every
-# such run. An auto step that is started and abandoned is not caught; one that is skipped is.
+# The currentStep exemption is what makes `start --skip-scope` work: it writes CONTEXT_CHECK
+# "in_progress" with SCOPE already "completed", and legitimately stops there to ask for
+# /compact. Without the exemption every such run would be blocked. With it, a step that was
+# started and then abandoned — TEST left "in_progress" while the run moved on to REVIEW — is
+# still caught, which is the realistic way a step disappears.
 
 # shellcheck source=lib-state.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-state.sh"
@@ -36,12 +38,22 @@ fi
 # Ordered steps
 STEPS=("CONTEXT_CHECK" "SCOPE" "PLAN" "COMPONENTS" "IMPLEMENT" "VERIFY" "TEST" "REVIEW" "DOCUMENT" "CLOSE")
 
+# Which steps are user gates is decided HERE, not in the state file. The file is written by the
+# model this hook exists to constrain, so reading `gate` from it let a run demote its own gate
+# to "auto" — or omit the step entirely, which used to be weaker still: a missing key was
+# neither completed nor pending and therefore blocked nothing. A step absent from .steps is now
+# treated as pending, so deleting keys makes the gate stricter, never looser.
+USER_GATES=" SCOPE COMPONENTS VERIFY REVIEW CLOSE "
+
+CURRENT=$(jq -r '.currentStep // ""' "$STATE_FILE" 2>/dev/null)
+
 blocker=""
 blocker_gate=""
 
 for step in "${STEPS[@]}"; do
-  status=$(jq -r ".steps.${step}.status // \"none\"" "$STATE_FILE" 2>/dev/null)
-  gate=$(jq -r ".steps.${step}.gate // \"auto\"" "$STATE_FILE" 2>/dev/null)
+  status=$(jq -r ".steps.${step}.status // \"pending\"" "$STATE_FILE" 2>/dev/null)
+  [ -n "$status" ] || status="pending"
+  case "$USER_GATES" in *" $step "*) gate="user" ;; *) gate="auto" ;; esac
 
   if [ -n "$blocker" ]; then
     # An earlier step is unfinished. If this later step already started → order broken.
@@ -57,8 +69,9 @@ for step in "${STEPS[@]}"; do
     # Unconfirmed user gate — nothing after it may run.
     blocker="$step"
     blocker_gate="user"
-  elif [ "$gate" != "user" ] && [ "$status" = "pending" ]; then
-    # Auto step that never started — nothing after it may run.
+  elif [ "$gate" != "user" ] && { [ "$status" = "pending" ] ||
+       { [ "$status" = "in_progress" ] && [ "$step" != "$CURRENT" ]; }; }; then
+    # Auto step that never started, or one left running while the run moved on.
     blocker="$step"
     blocker_gate="auto"
   fi

@@ -3,8 +3,8 @@ name: lifecycle
 description: Orchestrate feature lifecycle — track steps, enforce gates, dispatch sub-agents. Use when starting a new task, checking lifecycle status, or advancing to the next step.
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Agent, Read, Bash
-argument-hint: "[start|next|status|advance|complete <step>]"
+allowed-tools: Agent, Task, Read, Bash
+argument-hint: "[start|next|status|advance|complete <step>|adopt|skip-compact|recover]"
 ---
 
 # Lifecycle Orchestrator
@@ -19,13 +19,42 @@ the gate that pins it down. Use `project-init` only when what to build has not b
 
 This skill's directory (its reference files live here) — resolved at runtime: !`echo ${CLAUDE_SKILL_DIR}`
 
-**All other commands** (`start`, `next`, `advance`, `complete`, `recover`): launch `Agent(general-purpose)` with the prompt below. Replace `SKILL_DIR` with the absolute path printed just above:
+The plugin's scripts directory — resolved at runtime: !`echo ${CLAUDE_PLUGIN_ROOT}/scripts`
+
+**Both paths must be substituted into the agent prompt as literal absolute paths.** Reference
+files are read as raw bytes: a `${CLAUDE_PLUGIN_ROOT}` written inside `steps.md` arrives at the
+model unexpanded and runs as `bash "/scripts/detect-project.sh"`, which does not exist.
+
+**`skip-compact`:** execute INLINE. Do NOT launch an agent — the compact gate blocks agent
+launches, and this command exists to lift that block, so routing it through an agent means the
+only way out of the gate is itself gated.
+
+Write the state with `jq` through Bash, which is the one tool the compact gate does not match:
+
+```
+jq '.awaitingCompact = false
+    | .compactSkippedAt = (now | todate)
+    | .compactSkippedBefore = (.currentStep // "unknown")' .lifecycle-state.json > .lifecycle-state.json.tmp \
+  && mv .lifecycle-state.json.tmp .lifecycle-state.json
+```
+
+This is the single exception to the "always write state with the Write tool" rule below, and it
+exists only because `Write` is gated too. Run it only when the user asked for it in so many
+words. Then tell them the gate is lifted and which step it was lifted before.
+
+**All other commands** (`start`, `adopt`, `next`, `advance`, `complete`, `recover`): launch `Agent(general-purpose)` with the prompt below. Replace `SKILL_DIR` and `SCRIPTS_DIR_LITERAL` with the absolute paths printed just above:
 
 ```
 Read these files in order:
 1. SKILL_DIR/references/state-schema.md — state file structure
 2. SKILL_DIR/references/project-config.md — the project's commands and plan location
 3. SKILL_DIR/references/steps.md — find the section for the CURRENT step only
+
+SCRIPTS_DIR is SCRIPTS_DIR_LITERAL. Wherever steps.md says SCRIPTS_DIR, use that path.
+
+Before anything else: read `.bergant-workflow.json` at the project root if it exists — it holds
+the commands and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, the project has
+not been adopted: run the ADOPT section of steps.md first, whatever the requested command was.
 
 Execute lifecycle command: $ARGUMENTS
 State file: .lifecycle-state.json
@@ -46,7 +75,7 @@ Critical rules:
 9. **Never mutate Git beyond what the current step prescribes.** No `stash`, no `checkout -f`,
    no `clean`, no `add -A`, no `branch -D`, no force push. If the tree is not what the step
    expects, stop and ask.
-10. When a task is completed, tick its checkbox in the corresponding `docs/plan/slice-*.md` file.
+10. When a task is completed, tick its checkbox in the corresponding plan file (the one `planGlob` matched).
 11. **Live checklist, if the session has one.** If a checklist tool such as `TodoWrite` is
     available, mirror the step statuses into it so progress renders in the UI. It is a mirror,
     never the record — `.lifecycle-state.json` is the record, and `status` reads from it. Some
@@ -54,7 +83,7 @@ Critical rules:
 
 When you hit a user gate (STOP HERE), return the gate message. Return a concise summary of what was done and what the user needs to do next.
 
-IMPORTANT: When writing or updating .lifecycle-state.json, ALWAYS use the Write tool — NEVER use Bash with cat/heredoc/echo redirect. Heredoc commands trigger permission prompts.
+IMPORTANT: When writing or updating .lifecycle-state.json, ALWAYS use the Write tool — NEVER use Bash with cat/heredoc/echo redirect. Heredoc commands trigger permission prompts. The sole exception is `skip-compact`, documented above: `Write` is blocked by the very gate that command lifts.
 ```
 
 If the agent returns an error, display it to the user without re-running.
@@ -80,7 +109,7 @@ Display a formatted table:
 | `adopt` | Learn an existing project: detect its build/lint/test commands and any plan it already has, confirm both with the user, write `.bergant-workflow.json`. Runs automatically on the first `start` when that file is missing. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |
 | `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. |
-| `next` | Read `docs/plan/slice-*.md` files, find first ⏳ task in the lowest incomplete slice, run `start` on it. |
+| `next` | Read the plan files matched by `planGlob` (default `docs/plan/slice-*.md`), take the lowest-numbered file whose `Status:` line is not `done`, find its first unticked `- [ ]` task, run `start` on it. With `planGlob: null` there is nothing to pick up — say so and ask the user what to work on. |
 
 ## State File Location
 
