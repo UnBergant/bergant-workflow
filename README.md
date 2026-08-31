@@ -132,8 +132,9 @@ claude plugin update bergant-workflow               # install the new version
 Both steps matter: the first only refreshes metadata, the second is what swaps the version.
 Restart Claude Code afterwards. `/plugin` does the same from inside a session.
 
-So that a stale install is noticeable at all, the compact gate that opens every lifecycle
-carries a one-line notice when a newer version exists. It compares the version in your
+So that a stale install is noticeable at all, a notice appears at the top of a session when a
+newer version exists — and again on the block that opens a lifecycle, for sessions that were
+already running. It compares the version in your
 `plugin.json` against two sources — the marketplace clone on disk, which is only as fresh as
 your last `marketplace update`, and this project's `plugin.json` on `main`, which is served
 through a CDN and can lag a release by a few minutes — then prints the two commands above. It
@@ -148,7 +149,8 @@ export BERGANT_WORKFLOW_NO_UPDATE_CHECK=1
 
 The `lifecycle` skill keeps its state in `.lifecycle-state.json` at the project root. Three
 hooks (wired via `hooks/hooks.json`, paths resolved with `${CLAUDE_PLUGIN_ROOT}`) read and
-write that file:
+write that file. A fourth wiring carries no enforcement at all — it only reports a stale
+install:
 
 | Hook script | Event | Purpose |
 |-------------|-------|---------|
@@ -156,8 +158,10 @@ write that file:
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
 | `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
 
-`check-plugin-update.sh` sits next to them but is not wired into `hooks.json` — it is a helper
-the compact gate calls to print the update notice described under [Update](#update).
+| `check-plugin-update.sh` | `SessionStart(startup\|resume)` | Prints the update notice described under [Update](#update) — at most once a day, silent when current |
+
+`check-plugin-update.sh` has two callers: the `SessionStart` wiring above, and the compact gate,
+which appends the same line to the block that opens a lifecycle.
 
 The `Stop` hook is the one that matters. It walks the ten steps in order, finds the first one
 that is not `completed`, and blocks if anything after it has already started:

@@ -4,6 +4,19 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-31
+
+### Changed
+- The update notice now runs on `SessionStart(startup|resume)` as well, and that is where it
+  normally lands. Hanging it off the compact gate alone was wrong: that gate fires on
+  `PreToolUse(Agent)`, and the first agent of a run launches before `.lifecycle-state.json`
+  exists, so the hook allows it. Everything up to `PLAN` then happens inside that one agent —
+  no further tool call, no further hook, no notice. A session that never reaches `IMPLEMENT`
+  never saw it. `SessionStart` puts the line in context at the top of the session instead,
+  with no lifecycle involved; the compact gate keeps appending it for sessions already running.
+- The notice says explicitly that Claude must not run the update itself. A plugin update is new
+  code on the user's machine — it is installed deliberately, not on a model's say-so.
+
 ## [0.4.1] — 2026-08-31
 
 ### Fixed
