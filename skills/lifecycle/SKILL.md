@@ -9,6 +9,12 @@ argument-hint: "[start|next|status|advance|complete <step>|adopt|skip-compact|re
 
 # Lifecycle Orchestrator
 
+<!-- allowed-tools lists only what this skill needs INLINE: Read for `status`, Bash for
+     `skip-compact`'s jq write, and the sub-agent tool under both names the harness uses. Every
+     other command runs in a spawned agent, which carries its own tools. If you ever add an
+     inline step that writes a file, add Write here too — otherwise it will fail the day this
+     field starts being enforced. -->
+
 Runs one slice to a merged PR. It does **not** need `project-init` to have run: on a project
 with no plan documents the scope comes from what the user described at `start`, and SCOPE is
 the gate that pins it down. Use `project-init` only when what to build has not been decided.

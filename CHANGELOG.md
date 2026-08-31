@@ -4,6 +4,21 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.12.3] — 2026-08-31
+
+### Fixed
+- `project-init` declared `Glob` and `Grep` in `allowed-tools`. Neither exists as a tool in
+  Claude Code 2.1.251, and the skill never named them — a declaration that could only ever be
+  wrong. Removed.
+
+### Note
+- Both spellings of the sub-agent tool stay declared: a session exposes it as `Task`, a tool
+  call reports as `Agent`, and which one a given build offers is not something a plugin should
+  bet on.
+- Each skill now says in a comment what its `allowed-tools` covers and why — the inline paths
+  only, since every other command runs in a spawned agent with its own tools. Whether the field
+  is enforced for skills today is not something this plugin should depend on either way.
+
 ## [0.12.2] — 2026-08-31
 
 ### Fixed

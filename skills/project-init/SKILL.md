@@ -3,11 +3,16 @@ name: project-init
 description: Framework for creating project documentation from specs — reviews, research, architecture, planning, task decomposition into slices, and optional Jira sync. Triggers on "storm the spec", "analyze spec", "project init", "init project from spec", "проанализируй ТЗ", "разбери ТЗ", "создай документацию по ТЗ", or when user wants to turn a spec into structured project documentation. Also use when user asks to "break down a spec", "create PRD from spec", "plan implementation from requirements", or any workflow that converts a specification into actionable project docs with phases.
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Agent, Task, Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Agent, Task, Read, Write, Edit, Bash
 argument-hint: "[start <spec-file> [--from <phase>]|status|complete <phase>|recover]"
 ---
 
 # Project Init
+
+<!-- allowed-tools covers what this skill uses inline. `Glob` and `Grep` were listed and do not
+     exist as tools in Claude Code 2.1.251, and nothing here ever named them. Both spellings of
+     the sub-agent tool are kept: the session exposes it as `Task`, a tool call reports as
+     `Agent`, and which one a build offers is not something a plugin should bet on. -->
 
 Turns a specification into plan documents. On a repository that already exists, most tasks do
 not need this at all — `lifecycle` adopts the project and runs without a plan document. Reach
