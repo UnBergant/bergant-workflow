@@ -519,12 +519,17 @@ done
 
 # Whitelisting the four leaves room for a fifth. A plugin that ships hooks should not be able
 # to gain one without this failing.
-# LC_ALL=C so the comparison does not depend on locale collation: Git Bash on Windows orders
-# these strings differently from macOS and Linux, which failed this check for the wrong reason.
-if [ "$(printf '%s' "$WIRING" | LC_ALL=C sort)" = "$(printf '%s' "$EXPECTED_WIRING" | LC_ALL=C sort)" ]; then
+# Normalised on both sides: LC_ALL=C so collation cannot differ between Git Bash and the
+# others, and \r stripped because Python writes CRLF in text mode on Windows — which made this
+# check fail there against strings that printed identically.
+norm() { printf '%s' "$1" | tr -d '\r' | sed 's/[[:space:]]*$//' | grep -v '^$' | LC_ALL=C sort; }
+if [ "$(norm "$WIRING")" = "$(norm "$EXPECTED_WIRING")" ]; then
   echo "ok   no hook is wired that is not on the list"; PASS=$((PASS+1))
 else
-  echo "FAIL hooks.json wiring changed:"; printf '%s\n' "$WIRING"; FAIL=$((FAIL+1))
+  echo "FAIL hooks.json wiring changed"
+  echo "  actual:"; norm "$WIRING" | sed 's/^/    /'
+  echo "  expected:"; norm "$EXPECTED_WIRING" | sed 's/^/    /'
+  FAIL=$((FAIL+1))
 fi
 
 for f in "$HOOKS"/*.sh; do
