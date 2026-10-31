@@ -14,7 +14,7 @@
 #
 # The currentStep exemption is what makes `start --skip-scope` work: it writes CONTEXT_CHECK
 # "in_progress" with SCOPE already "completed", and legitimately stops there to ask for
-# /compact. Without the exemption every such run would be blocked. With it, a step that was
+# /compact when the project has `compactGate` on. Without the exemption every such run would be blocked. With it, a step that was
 # started and then abandoned — TEST left "in_progress" while the run moved on to REVIEW — is
 # still caught, which is the realistic way a step disappears.
 

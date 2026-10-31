@@ -62,7 +62,11 @@ You manage the spec-to-documentation framework. State persists in `docs/spec-sta
 
 **Advisory role:** Act as a **senior product manager** during PRD and a **senior architect** during ARCHITECTURE. Don't just document what the user said — analyze their needs deeper, suggest improvements they haven't considered, identify blind spots, and proactively propose solutions. Guide the user like a seasoned expert who's built similar systems before.
 
-**Context management:** After completing any heavy phase, suggest `/compact` to free context. State and docs are persisted — nothing is lost.
+**Context management:** Heavy work runs in sub-agents, so the main context stays small and no
+`/compact` is needed by default. Only when `.bergant-workflow.json` at the project root says
+`"compactGate": true` do you suggest `/compact` after a heavy phase. A missing file — the usual
+case here, since project-init often runs before the project is adopted — or a missing field
+means the gate is off: say nothing about compacting. State and docs are persisted either way.
 
 **Graceful degradation:** Some phases use optional integrations (WebSearch, `/toxic-opinion`, Jira MCP). If a tool or skill is unavailable, skip that step, note it was skipped in the output docs, and continue. Never block a phase on a missing optional tool.
 
@@ -154,7 +158,7 @@ Phase name matching is **case-insensitive** (`prd`, `PRD`, `Prd` all work).
 6. **Jira only via agents.** Never call `mcp__atlassian__*` in main context. Use jira-ops skill patterns.
 7. **Interactive by default.** Multiple options → present trade-offs, ask user. Don't decide silently.
 8. **MVP mindset.** Core flow first, polish last. Flag post-MVP ideas but don't over-plan them.
-9. **Suggest `/compact`** after heavy phases (PRD, ARCHITECTURE, PLANNING, DECOMPOSITION).
+9. **Suggest `/compact` only when `compactGate` is on** (see Context management above), after heavy phases (PRD, ARCHITECTURE, PLANNING, DECOMPOSITION). Off — the default — means no compact suggestion at all.
 10. **Never overwrite docs** without asking. If updating, show diff or ask permission first.
 11. **Optional integrations are opt-in.** Always ask before web research or toxic-opinion. If tool unavailable, skip and note in docs.
 12. **Files are the contract.** All decisions must be captured in docs before completing a phase. Conversation is ephemeral, files persist.

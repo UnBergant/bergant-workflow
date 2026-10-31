@@ -127,7 +127,8 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 5. Only then write `.bergant-workflow.json` at the project root — `commands` holds the root's
    commands, all `null` when the root is not a project — then regenerate
    `docs/bergant-workflow-commands.md` from it (see "Project commands" above), and commit both
-   by exact path, never with `-A` or `.` — together with `CLAUDE.md` or `AGENTS.md` if the
+   by exact path, never with `-A` or `.` (do not write or ask about `compactGate`: absent means off, the user
+   adds it by hand to opt in, and re-running ADOPT keeps a value already there) — together with `CLAUDE.md` or `AGENTS.md` if the
    pointer line was just added to it, or the tree is left dirty right before the branch is cut:
    ```
    git add .bergant-workflow.json docs/bergant-workflow-commands.md [CLAUDE.md|AGENTS.md] && git commit -m "chore: adopt bergant-workflow"
@@ -138,9 +139,14 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 
 ## CONTEXT_CHECK
 
-- Exists solely to enforce context cleanup before real work begins.
+- Sets up the branch and the state file, and, only when the project opted in, enforces context
+  cleanup before real work begins.
+- **Compact gate: read `compactGate` from `.bergant-workflow.json`.** Only `true` turns it on.
+  Missing field, missing file or any other value means **off**, the default: heavy steps run in
+  sub-agents, so the main context stays small and a forced `/compact` only gets in the way.
 - **Order on `start`, and it is not negotiable:** git preflight → ADOPT (if the project has not
-  been adopted) → create the branch → write the state file with `awaitingCompact: true`.
+  been adopted) → create the branch → write the state file with `awaitingCompact: true` when the
+  gate is on, `awaitingCompact: false` when it is off.
   Setting the flag earlier blocks the agent that would have run ADOPT, so adoption lands after
   the compact instead of before the work — two runs of the same command then ask their questions
   in different orders. Adoption is a read plus one question; it belongs before the flag.
@@ -174,6 +180,10 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
   - a check that is new for an existing project and that the user may not want (`ruff format
     --check` beside `ruff check`, say): propose a `projects.<path>` override that keeps the old
     behaviour.
+- **Gate off:** do not print "Run /compact". In the same run, mark CONTEXT_CHECK completed and
+  advance exactly as "On resume after compact" below says: SCOPE (present and STOP), or PLAN
+  with `--skip-scope`.
+- **Gate on** — everything below applies unchanged:
 - After `/compact`: SessionStart(compact) hook clears `awaitingCompact`.
 - The gate blocks agent launches and edit tools while the flag is set; `Bash` is deliberately
   left alone so the user can still look around while deciding. If the user explicitly says to
@@ -212,9 +222,13 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
 - Present plan to user. When approved:
   - Record the subtasks in `steps.IMPLEMENT.subtasks` in the state file — that is the record, and `/bergant-workflow:lifecycle status` renders it. If a checklist tool such as `TodoWrite` is available, mirror them there too.
   - Save component inventory to `"components"` array in COMPONENTS step.
-- **Set `"awaitingCompact": true`**.
-- Display: `✅ PLAN completed. 🧹 Run /compact before continuing.`
-- Do NOT start COMPONENTS.
+- **Gate on** (`"compactGate": true` in `.bergant-workflow.json`):
+  - **Set `"awaitingCompact": true`**.
+  - Display: `✅ PLAN completed. 🧹 Run /compact before continuing.`
+  - Do NOT start COMPONENTS.
+- **Gate off** (the default, also when the field is missing): leave `awaitingCompact` false,
+  display `✅ PLAN completed.`, and advance to COMPONENTS in the same run — which stops at its
+  user gate, or auto-skips to IMPLEMENT for a task with no UI.
 
 ## COMPONENTS (gate: user)
 

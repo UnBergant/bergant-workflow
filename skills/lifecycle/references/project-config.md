@@ -34,6 +34,7 @@ accepted the runner and the integration layer:
   "planGlob": null,
   "testSetupAccepted": "pytest",
   "integrationTest": "telethon",
+  "compactGate": true,
   "adoptedFrom": "empty",
   "adoptedAt": "2026-08-31T14:00:00Z"
 }
@@ -92,6 +93,7 @@ as that sub-project's command, so a configuration from before discovery runs eac
 | `integrationTest` | An accepted integration path for what this project *is* — e.g. `telethon` for a Telegram bot, which drives it as a real user. Needs credentials and network, so it is never assumed and never run in CI by default |
 | `testSetupAccepted` | The runner the user agreed to add, when the project had no tests. The first slice that needs tests installs it and fills in `commands.test` |
 | `testSetupDeclined` | `"once"` — declined at adoption; the offer returns once, at the first slice that adds real logic. `"always"` — declined twice, never raised again. Absent means it has not been asked yet, and silence never sets it |
+| `compactGate` | Optional, `false` when absent. `true` restores the forced `/compact`: `start` and the end of PLAN set `awaitingCompact`, and the hook blocks agent launches and edits until `/compact` or `skip-compact`. Off, nothing is set and the hook ignores even a stale flag. ADOPT does not write it; add it by hand to opt in |
 | `adoptedFrom` | `"empty"` when the project had no manifest yet — the first step that finds one re-runs adoption instead of reporting "not configured" forever |
 | `planGlob` | Where task descriptions live. `null` means the project has no plan documents and scope comes from what the user says at `start` |
 | `adoptedAt` | When the answers were confirmed |

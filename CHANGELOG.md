@@ -4,6 +4,25 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] — 2026-11-05
+
+### Changed
+- **The compact gate is now opt-in, and off by default.** It was built when every step ran
+  inline in the main session and a bloated context was the real risk. The heavy steps now run in
+  sub-agents with their own context, so the main session stays small and the forced `/compact`
+  after `start` and after `PLAN` blocked tool use for nothing. `"compactGate": true` in
+  `.bergant-workflow.json` restores the old behaviour exactly; a missing field, a missing file
+  or any other value means off.
+- Off, `lifecycle start` and the end of `PLAN` write `awaitingCompact: false`, print no
+  "Run /compact", and continue to the next step, stopping only at real user gates.
+  `project-init` stops suggesting `/compact` after heavy phases, including when it runs before
+  the project has a `.bergant-workflow.json` at all.
+- Off, `check-compact-gate.sh` is a no-op even when an older run left `awaitingCompact: true` in
+  the state file. The flag is ignored rather than cleared: a `PreToolUse` hook rewriting state
+  on every edit is a side effect nobody asked for, and turning the gate back on honours it again.
+- `skip-compact` still works and stays harmless with the gate off.
+- Adoption does not write `compactGate`; the field is added by hand to opt in.
+
 ## [0.13.0] — 2026-11-03
 
 ### Added

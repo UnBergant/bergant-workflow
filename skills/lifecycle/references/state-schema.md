@@ -9,7 +9,7 @@ File: `.lifecycle-state.json`
   "baseBranch": "<default branch discovered at CONTEXT_CHECK — never assumed to be master>",
   "startedAt": "<ISO timestamp>",
   "currentStep": "CONTEXT_CHECK",
-  "awaitingCompact": true,
+  "awaitingCompact": false,
   "scopeApprovedAt": "<ISO timestamp — set when user runs /bergant-workflow:lifecycle complete SCOPE>",
   "codexOpinionIncorporated": false,
   "codexFindings": [],
@@ -65,6 +65,7 @@ These fields survive `/compact` and give the next session enough semantic anchor
 | Field | Type | Set when | Purpose |
 |-------|------|----------|---------|
 | `scopeApprovedAt` | ISO timestamp | User runs `/bergant-workflow:lifecycle complete SCOPE` | Proof that SCOPE gate passed; ordering |
+| `awaitingCompact` | boolean | `true` only at `start` and after PLAN, and only when `.bergant-workflow.json` has `"compactGate": true` | Makes the compact gate block until `/compact` or `skip-compact`. Ignored by the hook while the gate is off |
 | `compactSkippedAt` | ISO timestamp | User runs `/bergant-workflow:lifecycle skip-compact` | Records that the compact gate was passed by an explicit decision rather than a compact |
 | `compactSkippedBefore` | string | Same | Which step the skip applied to |
 | `codexOpinionIncorporated` | boolean | `/toxic-opinion` ran during SCOPE and findings merged into approved scope | Guards against re-asking Codex post-compact |

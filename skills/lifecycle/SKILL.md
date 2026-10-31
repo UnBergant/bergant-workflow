@@ -46,7 +46,9 @@ jq '.awaitingCompact = false
 
 This is the single exception to the "always write state with the Write tool" rule below, and it
 exists only because `Write` is gated too. Run it only when the user asked for it in so many
-words. Then tell them the gate is lifted and which step it was lifted before.
+words. Then tell them the gate is lifted and which step it was lifted before. If
+`.bergant-workflow.json` does not say `"compactGate": true`, add that the gate is off for this
+project, so nothing was blocking; the write is still harmless.
 
 **All other commands** (`start`, `adopt`, `next`, `advance`, `complete`, `recover`): launch `Agent(general-purpose)` with the prompt below. Replace `SKILL_DIR` and `SCRIPTS_DIR_LITERAL` with the absolute paths printed just above:
 
@@ -59,8 +61,11 @@ Read these files in order:
 SCRIPTS_DIR is SCRIPTS_DIR_LITERAL. Wherever steps.md says SCRIPTS_DIR, use that path.
 
 On `start`, do things in this order and no other: git preflight, then ADOPT if
-`.bergant-workflow.json` is missing, then the task branch, then write the state file with
-`awaitingCompact: true`. Writing that flag first blocks the agent that ADOPT needs.
+`.bergant-workflow.json` is missing, then the task branch, then write the state file.
+Set `awaitingCompact: true` ONLY when `.bergant-workflow.json` has `"compactGate": true`;
+writing that flag before ADOPT blocks the agent ADOPT needs. With the gate off (the default,
+also when the field is missing) write `awaitingCompact: false`, never print "Run /compact",
+and go straight on to the next step — stop only at real user gates.
 
 Before anything else: read `.bergant-workflow.json` at the project root if it exists — it holds
 the command overrides and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, or has
@@ -118,12 +123,12 @@ Display a formatted table:
 
 | Command | Action |
 |---------|--------|
-| `start <task>` | Git preflight, then initialize state with `awaitingCompact: true`. Supports `--skip-scope`. |
+| `start <task>` | Git preflight, then initialize state. `awaitingCompact: true` only when `compactGate` is on in `.bergant-workflow.json`; off by default, and then the run goes straight to SCOPE. Supports `--skip-scope`. |
 | `advance` | Move to next step (validates current is completed, respects gates). |
 | `complete <step>` | User confirms a gate. Marks step completed, advances. |
 | `adopt` | Learn an existing project: detect the build/lint/test commands of the root and every sub-project, and any plan it already has, confirm both with the user, write `.bergant-workflow.json` and `docs/bergant-workflow-commands.md`. Runs automatically on the first `start` when that file is missing. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |
-| `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. |
+| `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. With `compactGate` off it is harmless: it clears a stale flag and nothing was blocking anyway. |
 | `next` | Read the plan files matched by `planGlob` (default `docs/plan/slice-*.md`), take the lowest-numbered file whose `Status:` line is not `done`, find its first unticked `- [ ]` task, run `start` on it. With `planGlob: null` there is nothing to pick up — say so and ask the user what to work on. |
 
 ## State File Location
@@ -140,6 +145,7 @@ lifecycle on a missing optional tool.
 | Dependency | Step | If missing |
 |------------|------|-----------|
 | `jq` (required by the hooks) | compact/gate hooks | hooks no-op → gate enforcement is OFF; warn and suggest `brew install jq` |
+| `"compactGate": true` in `.bergant-workflow.json` (opt-in, off by default) | CONTEXT_CHECK, after PLAN | no compact gate: no `awaitingCompact`, no "Run /compact", the run continues to the next step |
 | A second-opinion skill driving an external model (e.g. `toxic-opinion` + Codex CLI — not bundled) | SCOPE second opinion | skip with a note in the approved scope |
 | A dual-review skill (e.g. `toxic-review` — not bundled) | REVIEW | single in-house review Agent only, note which was used |
 | `gh` CLI (authenticated) | CLOSE (PR create/merge) | fall back to GitHub MCP (`mcp__github__*`); if neither is available, stop and let the user open/merge the PR manually |

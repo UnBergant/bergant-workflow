@@ -183,7 +183,7 @@ Format: requirement — jurisdiction — source URL — checked YYYY-MM-DD>
 
 **STOP.** Gate: `When ready: /bergant-workflow:project-init complete PRD`
 
-Suggest `/compact` before next phase.
+Suggest `/compact` before next phase only if `compactGate` is on (SKILL.md rule 9); otherwise say nothing about it.
 
 ---
 
@@ -523,7 +523,7 @@ Items that are intentionally deferred from MVP but MUST be addressed before scal
 
 **STOP.** Gate: `When ready: /bergant-workflow:project-init complete ARCHITECTURE`
 
-Suggest `/compact` before next phase.
+Suggest `/compact` before next phase only if `compactGate` is on (SKILL.md rule 9); otherwise say nothing about it.
 
 ---
 
@@ -582,7 +582,7 @@ Read `docs/prd.md` and `docs/architecture.md` first.
 
 **STOP.** Gate: `When ready: /bergant-workflow:project-init complete PLANNING`
 
-Suggest `/compact` before next phase.
+Suggest `/compact` before next phase only if `compactGate` is on (SKILL.md rule 9); otherwise say nothing about it.
 
 ---
 
@@ -637,7 +637,7 @@ Discuss ordering/granularity with the user; adjust slices on request.
 
 **STOP.** Gate: `When ready: /bergant-workflow:project-init complete DECOMPOSITION`
 
-Suggest `/compact` before next phase.
+Suggest `/compact` before next phase only if `compactGate` is on (SKILL.md rule 9); otherwise say nothing about it.
 
 ---
 

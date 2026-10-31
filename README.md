@@ -132,7 +132,7 @@ branch deletion is `-d` only. It will not move, hide or sweep up work it did not
 |-----------|------|--------------|
 | `project-init` | skill | Turns a spec into structured docs: `INPUT_VALIDATION → PRD → ARCHITECTURE → PLANNING → DECOMPOSITION → FINALIZE`. DECOMPOSITION writes task slices to `docs/plan/` |
 | `lifecycle` | skill | Drives one feature end-to-end: `CONTEXT_CHECK → SCOPE → PLAN → COMPONENTS → IMPLEMENT → VERIFY → TEST → REVIEW → DOCUMENT → CLOSE`, preceded once per project by an adoption step that learns how the repository builds and tests itself |
-| 3 hooks | hooks | Enforce step order and the user gates, and force a `/compact` before the heavy steps. A fourth wiring only reports a stale install |
+| 3 hooks | hooks | Enforce step order and the user gates, and, if you opt in, force a `/compact` before the heavy steps. A fourth wiring only reports a stale install |
 
 They compose, but they are not a pair: `project-init` breaks a spec into slices and
 `lifecycle next` picks up the next one — while on a repository that already exists, `lifecycle`
@@ -164,7 +164,7 @@ runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-ru
    +==========================================================+
    |  ADOPT             [gate]   once per project: reads how   |
    |                             it builds, asks, then writes |
-   |  CONTEXT_CHECK     [cmpct]  branch + forced /compact     |
+   |  CONTEXT_CHECK     [cmpct]  branch (+ /compact, opt-in)  |
    |  SCOPE             [gate]   scope read + second opinion  |
    |  PLAN              [cmpct]  explore + component inventory|
    |  COMPONENTS        [gate]   tokens, components, stories  |
@@ -179,8 +179,8 @@ runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-ru
                              +-----> next slice (repeat)
 
    [gate]   user gate    - Stop hook blocks until `complete <step>`
-   [cmpct]  compact gate - PreToolUse hook blocks agents and edits until `/compact`
-            (or an explicit `lifecycle skip-compact`)
+   [cmpct]  compact gate - off by default; with `"compactGate": true` a PreToolUse
+            hook blocks agents and edits until `/compact` (or `lifecycle skip-compact`)
 ```
 
 ## Install
@@ -215,7 +215,7 @@ Commands are namespaced under `bergant-workflow:` after install.
 | `lifecycle status` | Where am I — the step table, gates marked, `IMPLEMENT` subtasks |
 | `lifecycle complete <step>` | Your approval on a user gate. The only thing that clears one |
 | `lifecycle advance` | Move to the next step when the current one is done |
-| `lifecycle skip-compact` | Continue without compacting, on purpose. Recorded in state |
+| `lifecycle skip-compact` | Continue without compacting, on purpose. Recorded in state. Harmless when the compact gate is off |
 | `lifecycle adopt` | Learn an existing project: detect its commands and plan, confirm, write `.bergant-workflow.json`. Runs automatically on the first `start` |
 | `lifecycle recover` | Rebuild state from git, build and tests when the state file is lost |
 
@@ -281,13 +281,13 @@ install:
 
 | Hook script | Event | Purpose |
 |-------------|-------|---------|
-| `check-compact-gate.sh` | `PreToolUse(Agent\|Task\|Edit\|Write\|…)` | Blocks agent launches and edits while `awaitingCompact: true` — forces a `/compact` before the heavy steps. `Bash` is not matched |
+| `check-compact-gate.sh` | `PreToolUse(Agent\|Task\|Edit\|Write\|…)` | Only with `"compactGate": true` in `.bergant-workflow.json`: blocks agent launches and edits while `awaitingCompact: true`, forcing a `/compact` before the heavy steps. Otherwise a no-op. `Bash` is not matched |
 | `inject-lifecycle-state.sh` | `SessionStart(compact)` | Clears the flag and re-injects lifecycle state after compaction |
 | `check-lifecycle-gate.sh` | `Stop` | Refuses to let Claude finish its turn if it started a step while an earlier one is unfinished |
 | `check-plugin-update.sh` | `SessionStart(startup\|resume)` | Prints the update notice described under [Update](#update) — at most once a day, silent when current |
 
 `check-plugin-update.sh` has two callers: the `SessionStart` wiring above, and the compact gate,
-which appends the same line to the block that opens a lifecycle.
+which appends the same line to the block that opens a lifecycle when that gate is on.
 
 The `Stop` hook is the one that matters. It walks the ten steps in order, finds the first one
 that is not `completed`, and blocks if anything after it has already started:
@@ -305,6 +305,24 @@ into the next step on a bloated context without noticing — not to decide for y
 blocks, you either run `/compact` or run `/bergant-workflow:lifecycle skip-compact`, which
 clears the flag and records that you chose to. The skill is told never to run that on its own.
 
+**It is off unless you turn it on.** The heavy steps run in sub-agents with their own context,
+so the main session stays small and a forced `/compact` mostly interrupts for nothing; `/clear`
+between sessions is enough, since the state is on disk. To get the old behaviour back, add one
+field to `.bergant-workflow.json`:
+
+```json
+{
+  "commands": { "build": "npm run build", "lint": "npm run lint", "test": "npm run test", "e2e": null },
+  "planGlob": "docs/plan/slice-*.md",
+  "compactGate": true,
+  "adoptedAt": "2026-08-31T14:00:00Z"
+}
+```
+
+Only `true` turns it on; a missing field, a missing file or any other value means off. Off,
+`start` and `PLAN` never set `awaitingCompact`, and the hook ignores a stale flag left in the
+state file by an older run. Adoption does not write the field.
+
 That second case is why `TEST` cannot quietly disappear from a slice. It is not a user gate — you
 are never asked to approve tests — but `REVIEW` cannot start until `TEST` is closed one way or the
 other.
@@ -319,7 +337,7 @@ Worth being precise, because the whole pitch is that hooks beat prompts:
   make the gates stricter, never looser. A gate marked `completed` is taken at its word. What
   the hooks make impossible is drifting past a gate by forgetting, or walking away from a step
   mid-run; what they cannot make impossible is a deliberate false entry.
-- **The compact gate does not match `Bash`.** It covers agent launches and the edit tools, so
+- **The compact gate, when on, does not match `Bash`.** It covers agent launches and the edit tools, so
   the session cannot quietly start writing code before compacting, but a shell command can
   still change files. That is a deliberate trade: reading logs and running tests while you
   decide whether to compact is not what is being gated.
@@ -350,7 +368,7 @@ Worth knowing before you install something that ships hooks:
 
 - `.bergant-workflow.json` — project root, written once by adoption. **The skill commits it**
   after you confirm its contents. It records where your commands differ from what discovery
-  finds — per project, under `projects` — and where your plan lives.
+  finds — per project, under `projects` — and where your plan lives, plus `compactGate` if you add it by hand.
 - `docs/bergant-workflow-commands.md` — every project and its build, lint and test commands,
   generated from discovery plus your overrides at adoption, at each `start` and at `CLOSE`.
   It is the one list both you and the agents use; `CLAUDE.md` or `AGENTS.md`, if you have one,
