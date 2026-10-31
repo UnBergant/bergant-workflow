@@ -100,8 +100,9 @@ echo '{"task":"t"}' > .lifecycle-state.json
 check "legacy state, no steps -> allow" 0 EMPTY check-lifecycle-gate.sh
 
 echo
-echo "# check-compact-gate.sh"
+echo "# check-compact-gate.sh (gate on: \"compactGate\": true)"
 rm -f .lifecycle-state.json
+echo '{"commands":{},"compactGate":true}' > .bergant-workflow.json
 check "no lifecycle -> allow" 0 EMPTY check-compact-gate.sh
 state @awaitingCompact=true @currentStep=CONTEXT_CHECK CONTEXT_CHECK=in_progress
 check "awaiting compact -> block" 2 "COMPACT REQUIRED" check-compact-gate.sh
@@ -110,6 +111,47 @@ check "compact done -> allow" 0 EMPTY check-compact-gate.sh
 
 state @awaitingCompact=true @currentStep=CONTEXT_CHECK CONTEXT_CHECK=in_progress
 check "block message offers the explicit skip" 2 "skip-compact" check-compact-gate.sh
+
+# The config is read from the project root, next to the state file, not from the cwd.
+mkdir -p "$WORK/sub/dir"
+out=$(cd "$WORK/sub/dir" && BERGANT_WORKFLOW_NO_UPDATE_CHECK=1 "$SHELL_UNDER_TEST" "$HOOKS/check-compact-gate.sh" 2>&1 >/dev/null)
+code=$?
+if [ "$code" = "2" ] && printf '%s' "$out" | grep -q "COMPACT REQUIRED"; then
+  echo "ok   gate on, nested cwd -> config found at the root, still blocks"; PASS=$((PASS+1))
+else echo "FAIL gate on, nested cwd -> exit $code, out: $out"; FAIL=$((FAIL+1)); fi
+
+echo
+echo "# check-compact-gate.sh (gate off — the default)"
+# Off must hold even with a stale awaitingCompact:true left by an older run: the hook ignores
+# the flag instead of rewriting state on every edit.
+echo '{"commands":{},"compactGate":false}' > .bergant-workflow.json
+state @awaitingCompact=true @currentStep=CONTEXT_CHECK CONTEXT_CHECK=in_progress
+check "compactGate false + stale flag -> allow" 0 EMPTY check-compact-gate.sh
+if [ "$(jq -r '.awaitingCompact' .lifecycle-state.json)" = "true" ]; then
+  echo "ok   gate off leaves the state file untouched"; PASS=$((PASS+1))
+else echo "FAIL gate off rewrote the state file"; FAIL=$((FAIL+1)); fi
+
+echo '{"commands":{}}' > .bergant-workflow.json
+check "compactGate field missing + flag -> allow" 0 EMPTY check-compact-gate.sh
+
+rm -f .bergant-workflow.json
+check "no .bergant-workflow.json (project-init before adoption) + flag -> allow" 0 EMPTY check-compact-gate.sh
+
+echo '{"commands":{},"compactGate":"true"}' > .bergant-workflow.json
+check "compactGate as a string is not true -> allow" 0 EMPTY check-compact-gate.sh
+
+echo '{"commands":' > .bergant-workflow.json
+check "malformed config -> allow" 0 EMPTY check-compact-gate.sh
+
+# skip-compact's jq write must stay harmless with the gate off: it runs and the hook still allows.
+echo '{"commands":{}}' > .bergant-workflow.json
+jq '.awaitingCompact = false | .compactSkippedAt = (now | todate) | .compactSkippedBefore = (.currentStep // "unknown")' \
+  .lifecycle-state.json > .lifecycle-state.json.tmp && mv .lifecycle-state.json.tmp .lifecycle-state.json
+if [ "$(jq -r '.compactSkippedBefore' .lifecycle-state.json)" = "CONTEXT_CHECK" ]; then
+  echo "ok   skip-compact write works with the gate off"; PASS=$((PASS+1))
+else echo "FAIL skip-compact write broke with the gate off"; FAIL=$((FAIL+1)); fi
+check "after skip-compact, gate off -> allow" 0 EMPTY check-compact-gate.sh
+rm -f .bergant-workflow.json .lifecycle-state.json
 
 # The matcher decides which tools reach the hook at all, so assert it here: agent launches and
 # the edit tools are covered, Bash deliberately is not.
@@ -351,6 +393,7 @@ H8=$(fresh_home 8 9.9.9); installed_version 0.0.1
 (
   cd "$INJ" || exit 1
   printf '{"awaitingCompact":true,"currentStep":"CONTEXT_CHECK","steps":{}}' > .lifecycle-state.json
+  echo '{"commands":{},"compactGate":true}' > .bergant-workflow.json
   HOME="$H8" CLAUDE_PLUGIN_ROOT="$WORK/installed" \
     "$SHELL_UNDER_TEST" "$HOOKS/check-compact-gate.sh" > /dev/null 2> "$WORK/piggy.out"
 )
@@ -804,7 +847,7 @@ echo "$PASS passed, $FAIL failed"
 
 # Truncating this file used to leave it green: fewer assertions is not fewer failures. The
 # expected count is asserted so deleting cases is itself a failure. Raise it when adding tests.
-EXPECTED=182
+EXPECTED=191
 if [ $((PASS + FAIL)) -lt "$EXPECTED" ]; then
   echo "FAIL only $((PASS + FAIL)) assertions ran, expected at least $EXPECTED — did the suite get truncated?"
   FAIL=$((FAIL + 1))
