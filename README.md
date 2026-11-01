@@ -173,7 +173,7 @@ runs perfectly well on its own. See [Which skill do I run?](#which-skill-do-i-ru
    |  TEST                       unit + e2e, in your framework |
    |  REVIEW            [gate]   secret scan, commit, review  |
    |  DOCUMENT                   MEMORY.md / CLAUDE.md update |
-   |  CLOSE             [gate]   PR create -> merge -> clean  |
+   |  CLOSE             [gate]   PR -> merge -> /clear+prompt |
    +==========================================================+
                              |
                              +-----> next slice (repeat)
