@@ -390,4 +390,35 @@ than repeating a step.
    differently, match what is actually there rather than inventing a new form. Task checkboxes
    are ticked as they are completed, throughout — not here. **`next` finds the next slice by
    this line, so a slice never marked done is a slice the plugin returns to forever.**
-6. Suggest: `/bergant-workflow:lifecycle next`.
+6. **Hand off to a fresh session.** The slice is merged, so this session's context is spent
+   weight: suggest the user run `/clear`, then give them a ready-to-paste prompt for the next
+   session. End the return message with exactly this block:
+
+   ````
+   Слайс закрыт. Чтобы начать следующий с чистым контекстом, выполни `/clear` и вставь:
+
+   ```
+   /bergant-workflow:lifecycle start <next-slice>
+
+   Контекст:
+   - <slice> влит в <baseBranch> (<short sha>, PR #<n>).
+   - <what the next slice needs to know that is NOT in the repo docs: decisions taken
+     during this slice, deviations from the plan, quirks found in real data, test data
+     worth reusing and where it lives>
+   - <debt and deferred manual checks opened by this slice, with file paths>
+   - <constraints the user stated at `start` that still hold: deadlines, how to treat
+     gates, what not to touch>
+   ```
+   ````
+
+   Rules for the prompt:
+   - `<next-slice>` is what `next` would pick: the lowest-numbered plan file whose `Status:`
+     is not done. With `planGlob: null`, or no slice left, write
+     `/bergant-workflow:lifecycle next` and say there is no planned slice left.
+   - Carry forward only what a fresh session cannot read from the repo. Link files
+     (`docs/tech-debt.md`, `docs/acceptance/<slice>.md`) instead of retyping them.
+   - Re-state the user's standing instructions from this slice's `start` arguments if they
+     still apply. Drop the ones that were about this slice only.
+   - Write it in the language the user wrote the `start` arguments in.
+   - If the user asked to be reminded of something when the slice closes, put the reminder
+     above the block, not inside the prompt.

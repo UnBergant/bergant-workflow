@@ -108,6 +108,11 @@ IMPORTANT: When writing or updating .lifecycle-state.json, ALWAYS use the Write 
 
 If the agent returns an error, display it to the user without re-running.
 
+When the agent finishes CLOSE, its report ends with a `/clear` suggestion and a next-session
+prompt in a fenced block. Relay that block to the user **verbatim**, as a fenced block they can
+copy, and don't summarize it. The agent's report is not shown to the user, so a prompt you leave
+out is lost.
+
 ## Status display
 
 Read `.lifecycle-state.json`. If no file exists, say "No active lifecycle. Use `/bergant-workflow:lifecycle start <task-name>` to begin."
