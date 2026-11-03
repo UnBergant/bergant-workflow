@@ -63,8 +63,9 @@ On `start`, do things in this order and no other: git preflight, then ADOPT if
 `awaitingCompact: true`. Writing that flag first blocks the agent that ADOPT needs.
 
 Before anything else: read `.bergant-workflow.json` at the project root if it exists — it holds
-the command overrides and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, the project has
-not been adopted: run the ADOPT section of steps.md first, whatever the requested command was.
+the command overrides and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, or has
+no `commands` object (project-init writes only the planned `projects`), the project has not been
+adopted: run the ADOPT section of steps.md first, whatever the requested command was.
 
 Execute lifecycle command: $ARGUMENTS
 State file: .lifecycle-state.json

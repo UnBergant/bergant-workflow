@@ -11,8 +11,9 @@ root. Never assemble the commands yourself and never run only `commands.*`:
 - `bash "SCRIPTS_DIR/project-commands.sh" run <build|lint|test|e2e>` runs every project's
   command for that check, one after another from the repository root, keeps going after a
   failure, and ends with one `PASS` / `FAIL` / `SKIP` line per project. Exit 1 means at least
-  one failed. Report that summary as it is; a `SKIP … none` is a project with no such command,
-  and `NOTHING RAN` means no tests ran, which is never "tests passed".
+  one failed; exit 3 with `NOTHING RAN` means no project had the command, which is never
+  "tests passed"; exit 2 means `.bergant-workflow.json` is broken. Report the summary as it is;
+  a `SKIP … none` is a project with no such command.
 - `bash "SCRIPTS_DIR/project-commands.sh" <kind>` prints the same plan as JSON without running
   it, and `… markdown` prints it for people.
 
@@ -32,8 +33,9 @@ CONTEXT_CHECK, and before the final commit at CLOSE. If the repository has a `CL
 
 ## ADOPT (runs once per project, at the start of CONTEXT_CHECK)
 
-Skip entirely if `.bergant-workflow.json` exists AND has a `commands` object. If it exists but
-is malformed or missing `commands`, say so and adopt again. Otherwise the project has never
+Skip entirely if `.bergant-workflow.json` exists AND has a `commands` object. If it holds only
+`projects` (and maybe `exclude`), `project-init` started it: adopt, keeping those. If it is
+malformed, say so and adopt again. Otherwise the project has never
 been through this plugin, and guessing how it builds and where its plan lives is how a tool
 wrecks someone's repository. Look first, then ask once.
 
@@ -123,9 +125,10 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 5. Only then write `.bergant-workflow.json` at the project root — `commands` holds the root's
    commands, all `null` when the root is not a project — then regenerate
    `docs/bergant-workflow-commands.md` from it (see "Project commands" above), and commit both
-   by exact path, never with `-A` or `.`:
+   by exact path, never with `-A` or `.` — together with `CLAUDE.md` or `AGENTS.md` if the
+   pointer line was just added to it, or the tree is left dirty right before the branch is cut:
    ```
-   git add .bergant-workflow.json docs/bergant-workflow-commands.md && git commit -m "chore: adopt bergant-workflow"
+   git add .bergant-workflow.json docs/bergant-workflow-commands.md [CLAUDE.md|AGENTS.md] && git commit -m "chore: adopt bergant-workflow"
    ```
    If the tree was dirty and the user chose to continue anyway, do **not** commit — write the
    file, say it is uncommitted, and let them commit it with their own work. Then continue with
@@ -265,13 +268,16 @@ may close on its own, and only for this reason — say out loud that it was skip
   through.
 - Mark TEST completed, advance.
 
-**No test runner yet?** Per project, check `.bergant-workflow.json` (`projects.<path>` for a
-sub-project, the top level for the root) before deciding there is nothing to run:
+**No test runner yet?** This is about the projects the plan reports with status `none` only —
+a `skipped` or `planned` one, or one whose test the config set to `null` on purpose, is not
+missing anything. For each, check `.bergant-workflow.json` (`projects.<path>` for a sub-project,
+the top level for the root) before deciding there is nothing to run:
 - a test command, detected or configured → it runs.
 - `testSetupAccepted` set → this is the slice that sets it up, in that project's directory. Install the runner with the
   project's own package manager, add the minimal config it needs, write the tests for this
   slice, run them. Record the resulting command (`commands.test`, or `projects.<path>.test`)
-  unless detection already finds it, so no later slice repeats this. Do not pin a version from memory — let the package manager resolve it.
+  unless detection already finds it — and in that case remove a `null` left there at
+  adoption, which would otherwise keep switching the new tests off. Do not pin a version from memory — let the package manager resolve it.
 - `testSetupDeclined: "once"` → **ask again here, and only here**: this is the first slice that
   actually added logic, so the cost of having no tests is concrete rather than hypothetical.
   Show what this slice would have been covered by. If they decline a second time, write

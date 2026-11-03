@@ -9,9 +9,9 @@
 #     → the "Project commands" section, the same list written for people
 #   bash scripts/project-commands.sh run <build|lint|test|e2e> [project-root]
 #     → runs every `run` entry in turn from the repository root, one failure never stopping the
-#       next, then prints one PASS/FAIL/SKIP line per project. Exits 1 if any failed, 0
-#       otherwise, and says "NOTHING RAN" when there was nothing to run — no tests is not
-#       the same as tests passing.
+#       next, then prints one PASS/FAIL/SKIP line per project. Exits 1 if any failed, 3 with
+#       "NOTHING RAN" when there was nothing to run — no tests is not the same as tests
+#       passing — and 0 otherwise.
 #
 # `shell` is the line to run from the repository root. `status` is one of:
 #   run      — run it
@@ -46,8 +46,14 @@ printf '%s' "$DETECTED" | jq -e . >/dev/null 2>&1 || DETECTED='{"projects":[]}'
 
 CONFIG='{}'
 if [ -f .bergant-workflow.json ]; then
-  CONFIG=$(jq -ce 'if type == "object" then . else error("not an object") end' \
-             .bergant-workflow.json 2>/dev/null | tr -d '\r')
+  # Exactly one JSON object: `{...} trailing junk` prints the object before it fails, so the
+  # status is what decides, not whether something came out.
+  if CONFIG=$(jq -cse 'if length == 1 and (.[0] | type) == "object" then .[0] else error("not one object") end' \
+                .bergant-workflow.json 2>/dev/null); then
+    CONFIG=$(printf '%s' "$CONFIG" | tr -d '\r')
+  else
+    CONFIG=""
+  fi
   if [ -z "$CONFIG" ]; then
     echo "project-commands.sh: .bergant-workflow.json is not a valid JSON object; fix it or re-run adopt" >&2
     exit 2
@@ -57,20 +63,28 @@ fi
 # The rules live in one jq program so the JSON a step runs and the markdown a person reads can
 # never disagree.
 PROGRAM='
-def shq: if test("^[A-Za-z0-9._/@+-]+$") then . else @sh end;
-def line($cwd; $cmd): if $cwd == "." then $cmd else "cd \($cwd | shq) && \($cmd)" end;
+def shq: (if startswith("-") then "./" + . else . end)
+  | if test("^[A-Za-z0-9._/@+-]+$") then . else @sh end;
+def norm: sub("^\\./"; "") | sub("/$"; "");
+# A command that is more than an && chain is grouped, so nothing in it runs when the cd fails.
+def line($cwd; $cmd): if $cwd == "." then $cmd
+  elif ($cmd | gsub("&&"; "") | test("[;|&\n]")) then "cd \($cwd | shq) && (\($cmd))"
+  else "cd \($cwd | shq) && \($cmd)" end;
 
 def resolve($k):
   ($cfg.commands // {}) as $c
-  | ($cfg.projects // {} | if type == "object" then . else {} end) as $po
+  # Keys are matched as detection spells paths: `./web` and `web/` both mean `web`.
+  | ($cfg.projects // {} | if type == "object" then with_entries(.key |= norm) else {} end) as $po
   | ($det.projects // []) as $ps
   | (if ($c | has($k)) then $c[$k] else null end) as $rootcmd
   # A top-level command written as `cd <sub-project> && ...` is that sub-project'\''s command,
   # not an extra one. Configurations from before discovery existed say exactly this, and
   # running it beside the detected command would run the same tests twice.
   | (if ($rootcmd | type) == "string" and ($rootcmd | test("&&\\s*cd\\s") | not) then
-       ([$rootcmd | capture("^\\s*cd\\s+(?<p>[^\\s;&|]+)\\s*&&")] | first | .p // null
-        | if . then sub("^\\./"; "") | sub("/$"; "") else . end)
+       ([$rootcmd | capture("^\\s*cd\\s+(?<p>\"[^\"]+\"|'\''[^'\'']+'\''|[^\\s;&|]+)\\s*&&")]
+        | first | .p // null
+        | if . then ltrimstr("\"") | rtrimstr("\"") | ltrimstr("'\''") | rtrimstr("'\''") | norm
+          else . end)
      else null end) as $target
   | ([$ps[].path] | index($target)) as $hit
   | (if $target != null and $hit != null and $target != "." then $target else null end) as $absorbed
@@ -79,25 +93,28 @@ def resolve($k):
       | (if $o.skip == true then {command: null, cwd: $p.path, source: "override"}
          elif ($o | has($k)) then {command: $o[$k], cwd: $p.path, source: "override"}
          elif $p.path == $absorbed then {command: $rootcmd, cwd: ".", source: "config"}
-         elif $p.path == "." and ($c | has($k)) then {command: $c[$k], cwd: ".", source: "config"}
+         elif $p.path == "." and ($c | has($k)) and $absorbed == null then
+           {command: $c[$k], cwd: ".", source: "config"}
          else {command: $p[$k], cwd: $p.path, source: "detected"} end) as $r
       | {path: $p.path, stack: $p.stack, command: $r.command,
          shell: (if $r.command then line($r.cwd; $r.command) else null end),
          source: $r.source,
          status: (if $o.skip == true then "skipped"
-                  elif $p.planned then "planned"
+                  elif $p.planned and $r.source != "override" then "planned"
                   elif $r.command == null then "none"
                   else "run" end),
          workspaceRoot: $p.workspaceRoot}
         + (if $p.alsoFound then {note: "also has \($p.alsoFound | join(", ")); set its commands under projects in .bergant-workflow.json"} else {} end) ]
   | . as $rows
-  # A workspace member is covered only when the root runs this kind of check, with the command
-  # detection proved runs across the workspace. Overridden at the root, the command is the
-  # user'\''s and nothing is known about what it covers.
+  # A workspace member is covered only when the root runs this kind of check with the very
+  # command detection proved runs across the workspace — whether it was detected or copied into
+  # `commands` at adoption. A different root command is the user'\''s, and nothing is known about
+  # what it covers. A member with its own override is never covered: it asked to run.
   | ([$ps[] | select(.path == ".")][0] // {}) as $rootp
-  | ([$rows[] | select(.path == "." and .status == "run" and .source == "detected")] | length > 0
+  | ([$rows[] | select(.path == "." and .status == "run" and .command == $rootp[$k])] | length > 0
      and (($rootp.workspaceCovers // []) | index($k)) != null) as $rootCovers
   | [ $rows[] | if .workspaceRoot != null and $rootCovers and .status == "run"
+                   and .source == "detected"
                 then .status = "covered" else . end | del(.workspaceRoot) ]
   # No root project, but a root command that is not about any one sub-project: it runs at the
   # root, beside the rest. A repository-wide schema check is the usual case.
@@ -106,7 +123,8 @@ def resolve($k):
             source: "config", status: "run"}]
      else [] end);
 
-def mdcell($row): if $row.status == "run" then "`\($row.shell)`"
+def code: if test("`") then "`` \(.) ``" else "`\(.)`" end;
+def mdcell($row): if $row.status == "run" then ($row.shell | code)
   elif $row.status == "covered" then "run by the workspace root"
   elif $row.status == "skipped" then "skipped (configured)"
   elif $row.status == "planned" then "not created yet"
@@ -155,6 +173,8 @@ fi
 # Run mode. Sequential on purpose: two test suites at once compete for the same machine, and
 # their output interleaves into something nobody can read.
 SUMMARY=""; FAILED=0; RAN=0
+# Ctrl-C stops the whole run, even when the child handles the signal and exits 0 itself.
+trap 'echo; echo "interrupted"; exit 130' INT TERM
 # jq -r on Windows can end lines with \r; every value read back here is stripped of it.
 N=$(printf '%s' "$PLAN" | jq 'length' | tr -d '\r')
 i=0
@@ -170,7 +190,8 @@ SKIP $path: $status"
   fi
   line=$(printf '%s' "$row" | jq -r .shell | tr -d '\r')
   echo "==> $path: $line"
-  bash -c "$line"
+  # CDPATH would let `cd web` land in some other `web` entirely.
+  CDPATH= bash -c "$line"
   rc=$?
   RAN=$((RAN + 1))
   # 130 is Ctrl-C: the person wants it to stop, not to watch the next suite start.
@@ -183,5 +204,5 @@ done
 echo
 echo "== $KIND summary"
 printf '%s\n' "$SUMMARY" | sed '/^$/d'
-[ "$RAN" -eq 0 ] && echo "NOTHING RAN: no project has a $KIND command"
+if [ "$RAN" -eq 0 ]; then echo "NOTHING RAN: no project has a $KIND command"; exit 3; fi
 [ "$FAILED" -eq 0 ]

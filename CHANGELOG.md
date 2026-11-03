@@ -20,7 +20,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - `scripts/project-commands.sh`: the plan every step runs — per project, which command, from
   where, and why (`detected`, `override`, `config`) — as JSON, as markdown, or executed with
   `run <kind>`, which runs every project in turn, keeps going after a failure, and ends with
-  a `PASS` / `FAIL` / `SKIP` line per project. "NOTHING RAN" is said, never passed.
+  a `PASS` / `FAIL` / `SKIP` line per project. "NOTHING RAN" is said and exits 3, never 0.
 - `docs/bergant-workflow-commands.md`: the same plan for people, regenerated at adoption, at
   each `start` and at `CLOSE`, with one pointer line in `CLAUDE.md` / `AGENTS.md`.
 - `project-init` writes a `Project Layout` table into `architecture.md` and records its rows in
@@ -37,6 +37,10 @@ versioning follows [Semantic Versioning](https://semver.org/).
   conftest or `testpaths`; npm's "no test specified" placeholder is not a test command.
 - Workspace members are skipped only when the root's command provably covers them
   (`cargo … --workspace`, or a root script that runs across the workspace).
+- **Possible new lint failure:** a Python project that mentions ruff now also gets
+  `ruff format --check .` (unless black is declared). A project that uses ruff only as a linter
+  keeps the old behaviour with `"projects": {"<path>": {"lint": "ruff check ."}}` (or
+  `commands.lint` at the root); `start` points this out when the generated list changes.
 
 ### Migration
 - A top-level command written as `cd <sub-project> && …` is treated as that sub-project's

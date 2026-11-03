@@ -38,6 +38,11 @@ has_test_dir() {
   for t in tests test Tests __tests__ spec; do [ -d "$1/$t" ] && return 0; done
   return 1
 }
+# has_file <glob>... — at least one glob matched a real file. `ls a b` fails when either misses.
+has_file() {
+  for f in "$@"; do [ -e "$f" ] && return 0; done
+  return 1
+}
 
 # detect_dir <dir> — fills D_STACK, D_PM, D_BUILD, D_LINT, D_TEST, D_E2E for one directory.
 # D_STACK stays empty when the directory is not a project. `<dir>` is relative to ROOT.
@@ -82,7 +87,12 @@ detect_dir() {
         eval "cmd=\$D_$(echo "$kind" | tr 'a-z' 'A-Z')"
         [ -n "$cmd" ] || continue
         body=$(script_of "${cmd##* }")
-        if printf '%s' "$body" | grep -qE '(^|[[:space:]])(-r|--recursive|-ws|--workspaces|--filter)([[:space:]=]|$)|(^|[[:space:]])(turbo|nx|lerna|wsrun)[[:space:]]|yarn workspaces'; then
+        # Only forms that run every member: a package manager's recursive flag, `yarn
+        # workspaces foreach`, or a monorepo runner with no filter narrowing it to one package.
+        # A bare `-r` is as likely to be `rm -r`, and `--filter` names a subset.
+        if printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(pnpm|npm|yarn|bun)[[:space:]]([^;&|]*[[:space:]])?(-r|--recursive|-ws|--workspaces)([[:space:]]|$)|yarn workspaces foreach' \
+           || { printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(turbo|nx|lerna)[[:space:]]' \
+                && ! printf '%s' "$body" | grep -qE -- '--(filter|scope|projects?)([[:space:]=]|$)'; }; then
           D_COVERS="$D_COVERS $kind"
         fi
       done
@@ -91,7 +101,8 @@ detect_dir() {
   elif [ -f "$d/Package.swift" ]; then
     D_STACK="swift"; D_BUILD="swift build"
     # `swift test` errors out on a package with no test target, so it needs one to exist.
-    if [ -d "$d/Tests" ] || grep -q 'testTarget' "$d/Package.swift" 2>/dev/null; then
+    # A Tests/ directory alone does not make one: SwiftPM runs only declared test targets.
+    if grep -q 'testTarget' "$d/Package.swift" 2>/dev/null; then
       D_TEST="swift test"
     fi
     # swift-format is bundled with the toolchain, but linting with it is a choice a project
@@ -117,7 +128,7 @@ detect_dir() {
     # theme is not a Python project with tests to run.
     D_STACK="python"
     local pre="" cfgs=()
-    for f in pyproject.toml setup.cfg tox.ini pytest.ini requirements.txt requirements-dev.txt; do
+    for f in pyproject.toml setup.py setup.cfg tox.ini pytest.ini requirements.txt requirements-dev.txt; do
       [ -f "$d/$f" ] && cfgs[${#cfgs[@]}]="$d/$f"
     done
     # A uv project runs its tools from its own locked environment; a bare `pytest` there finds
@@ -133,8 +144,8 @@ detect_dir() {
     if { [ ${#cfgs[@]} -gt 0 ] && grep -qi "pytest" "${cfgs[@]}" 2>/dev/null; } \
        || [ -f "$d/conftest.py" ] || [ -f "$d/tests/conftest.py" ]; then
       if has_test_dir "$d" || [ -f "$d/conftest.py" ] \
-         || ls "$d"/test_*.py "$d"/*_test.py >/dev/null 2>&1 \
-         || grep -q 'testpaths' "${cfgs[@]}" 2>/dev/null; then
+         || has_file "$d"/test_*.py "$d"/*_test.py \
+         || { [ ${#cfgs[@]} -gt 0 ] && grep -q 'testpaths' "${cfgs[@]}" 2>/dev/null; }; then
         D_TEST="${pre}pytest"
       fi
     fi
@@ -164,9 +175,9 @@ detect_dir() {
       D_LINT="cargo clippy --workspace"; D_COVERS=" build lint test"
     fi
 
-  elif [ "$d" = "." ] && [ -f Makefile ]; then
-    # A Makefile alone makes a project only at the root. In a subdirectory it is as likely to
-    # build a document or an installer as code.
+  elif { [ "$d" = "." ] || [ "${DECLARED:-false}" = "true" ]; } && [ -f "$d/Makefile" ]; then
+    # A Makefile alone makes a project only at the root, or where the config declares one. In
+    # any other subdirectory it is as likely to build a document or an installer as code.
     D_STACK="make"
   fi
 
@@ -211,8 +222,8 @@ BUILD="$D_BUILD"; LINT="$D_LINT"; TEST="$D_TEST"; E2E="$D_E2E"
 # package.json files costs nothing. Fixture and template trees are pruned too: they hold
 # manifests on purpose, and their tests belong to the project that owns them. Anything else
 # can be left out with `exclude` in .bergant-workflow.json. find does not follow symlinks.
-PROJ_FILE=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/bwf-proj.$$")
-: > "$PROJ_FILE"
+# No predictable fallback name: without mktemp the sub-project list is simply empty.
+PROJ_FILE=$(mktemp 2>/dev/null) || PROJ_FILE=""
 
 CONFIG_PATHS=""; EXCLUDE=""
 if [ -f .bergant-workflow.json ] && have jq; then
@@ -244,19 +255,30 @@ SUBDIRS=$(find . -mindepth 1 -maxdepth 2 \
 
 # Whatever git ignores is not part of the project, whatever it contains. One git call for every
 # directory, not one per directory. Outside a git repository nothing is ignored.
-IGNORED=$(printf '%s\n' "$SUBDIRS" | git check-ignore --stdin 2>/dev/null)
+# NUL-separated both ways: git quotes names with spaces, quotes or non-ASCII in line mode, and
+# a quoted name would never compare equal to the one on disk.
+IGNORED=$(printf '%s\n' "$SUBDIRS" | tr '\n' '\000' | git check-ignore -z --stdin 2>/dev/null | tr '\000' '\n')
 is_ignored() { [ -n "$IGNORED" ] && printf '%s\n' "$IGNORED" | grep -qxF -- "$1"; }
 
 # is_member <dir> — the workspace manifest names this directory, directly or by its parent's
 # glob, and does not exclude it. Text matching, deliberately: evaluating the manifest would mean
 # running the package manager.
 is_member() {
-  local parent f
+  local parent f me pe
   parent=$(dirname "$1")
+  # Escaped for ERE, so `c++` or `a.b` match only themselves.
+  me=$(printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g')
+  pe=$(printf '%s' "$parent" | sed 's/[][\.*^$+?(){}|]/\\&/g')
   for f in package.json pnpm-workspace.yaml Cargo.toml; do
     [ -f "$f" ] || continue
-    grep -E '^[[:space:]]*exclude[[:space:]]*=' "$f" 2>/dev/null | grep -qF "\"$1\"" && return 1
-    grep -qE "[\"'](\./)?($1|$parent/\*|$parent/\*\*)[\"']" "$f" 2>/dev/null && return 0
+    # pnpm negation (`!packages/legacy`) and a quoted path anywhere in Cargo's `exclude` — a
+    # multi-line array included — take a member out.
+    grep -qE "[\"']!(\./)?$me[\"']" "$f" 2>/dev/null && return 1
+    if [ "$f" = "Cargo.toml" ] \
+       && sed -n '/^[[:space:]]*exclude[[:space:]]*=/,/\]/p' "$f" 2>/dev/null | grep -qE "[\"'](\./)?$me[\"']"; then
+      return 1
+    fi
+    grep -qE "[\"'](\./)?($me|$pe/\*|$pe/\*\*)[\"']" "$f" 2>/dev/null && return 0
   done
   return 1
 }
@@ -280,31 +302,40 @@ emit() {
     >> "$PROJ_FILE" 2>/dev/null
 }
 
-if have jq; then
+if have jq && [ -n "$PROJ_FILE" ]; then
   [ -n "$D_STACK" ] && emit . false
   printf '%s\n%s\n' "$SUBDIRS" "$CONFIG_PATHS" | while IFS= read -r d; do
     d="${d#./}"; d="${d%/}"
     { [ -z "$d" ] || [ "$d" = "." ]; } && continue
-    case "$d" in /*|..|../*|*/../*|*/..) continue ;; esac   # never leave the repository
+    # Never leave the repository: no absolute or drive paths, no `..`, no symlinked directory.
+    case "$d" in /*|[A-Za-z]:*|..|../*|*/../*|*/..) continue ;; esac
+    [ -L "$d" ] && continue
     declared=false
     printf '%s\n' "$CONFIG_PATHS" | grep -qxF -- "$d" && declared=true
     # A declared path is the project's own word and bypasses the filters; everything found by
     # the scan has to get past them.
     if [ "$declared" = "false" ]; then excluded "$d" && continue; is_ignored "$d" && continue; fi
-    detect_dir "$d"
+    # stdin is this loop's list of directories; nothing in detect_dir may read it.
+    DECLARED="$declared"
+    detect_dir "$d" < /dev/null
+    DECLARED=false
     if [ -n "$D_STACK" ]; then
       emit "$d" false
     elif [ "$declared" = "true" ]; then
       # A declared path with nothing there yet is a project that has been planned, not one
       # that is missing: project-init records the layout before any code exists.
-      D_STACK=$(jq -r --arg p "$d" '.projects[$p].stack // empty' .bergant-workflow.json 2>/dev/null | tr -d '\r')
+      D_STACK=$(jq -r --arg p "$d" '.projects | with_entries(.key |= (sub("^\\./"; "") | sub("/$"; "")))
+                 | .[$p].stack // empty' .bergant-workflow.json 2>/dev/null | tr -d '\r')
       emit "$d" true
     fi
   done
 fi
-PROJECTS=$(jq -s 'unique_by(.path)' "$PROJ_FILE" 2>/dev/null || echo '[]')
-[ -n "$PROJECTS" ] || PROJECTS='[]'
-rm -f "$PROJ_FILE" 2>/dev/null
+PROJECTS='[]'
+if [ -n "$PROJ_FILE" ]; then
+  PROJECTS=$(jq -s 'unique_by(.path)' "$PROJ_FILE" 2>/dev/null || echo '[]')
+  [ -n "$PROJECTS" ] || PROJECTS='[]'
+  rm -f "$PROJ_FILE" 2>/dev/null
+fi
 
 # When a project has no test command, "none configured" is a bad answer to stop at: most
 # repositories have no tests, and not having to work out how to add them is the point. So the
