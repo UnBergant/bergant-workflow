@@ -498,6 +498,247 @@ touch "$WORK/fx/tgnode/package-lock.json"
 detect tgnode '.domain' telegram-bot
 detect tgnode '.testSetup.integration' gramjs
 detect notests '.domain' null
+
+echo
+echo "# sub-project discovery"
+
+# plan <fixture> <kind> <jq-filter> <expected> — what project-commands.sh resolves for a kind
+plan() {
+  local name="$1" kind="$2" filter="$3" want="$4" got
+  got=$("$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" "$kind" "$WORK/fx/$name" | jq -r "$filter" 2>/dev/null)
+  if [ "$got" = "$want" ]; then
+    echo "ok   $name -> $kind $filter = $want"; PASS=$((PASS+1))
+  else
+    echo "FAIL $name -> $kind $filter = ${got:-<empty>}, wanted $want"; FAIL=$((FAIL+1))
+  fi
+}
+check() {   # check <description> <command...> — passes when the command succeeds
+  local what="$1"; shift
+  if "$@"; then echo "ok   $what"; PASS=$((PASS+1)); else echo "FAIL $what"; FAIL=$((FAIL+1)); fi
+}
+
+# No root manifest, a Swift package and a uv project beside it: the layout that went a month
+# with only one of its two test suites running.
+M="$WORK/fx/mono"
+mkdir -p "$M/recorder/Tests/CoreTests" "$M/recorder/Sources" "$M/transcribe/tests"
+printf '// swift-tools-version:6.0\nlet package = Package(name: "r", targets: [.testTarget(name: "CoreTests")])\n' > "$M/recorder/Package.swift"
+printf '[project]\nname = "t"\n[dependency-groups]\ndev = ["pytest", "ruff"]\n' > "$M/transcribe/pyproject.toml"
+touch "$M/transcribe/uv.lock"
+detect mono '.stack' unknown
+detect mono '.commands.test' null
+detect mono '.hasSourceCode' true
+detect mono '.projects | map(.path) | join(",")' "recorder,transcribe"
+detect mono '.projects[0].stack' swift
+detect mono '.projects[0].test' "swift test"
+detect mono '.projects[0].lint' null
+detect mono '.projects[1].test' "uv run pytest"
+detect mono '.projects[1].lint' "uv run ruff check . && uv run ruff format --check ."
+plan mono test '.[1].shell' "cd transcribe && uv run pytest"
+plan mono test 'map(.status) | join(",")' "run,run"
+
+# A sub-project that appears after adoption is picked up without touching the config.
+mkdir -p "$M/web"
+printf '{"scripts":{"test":"vitest run"}}' > "$M/web/package.json"
+plan mono test 'map(.path) | join(",")' "recorder,transcribe,web"
+plan mono test '.[2].shell' "cd web && npm run test"
+
+# A configuration written before discovery: `cd recorder && ...` is recorder's command, run
+# once, not an extra root command beside the detected one.
+printf '{"commands":{"test":"cd recorder && swift test","lint":"cd recorder && swift format lint -r Sources"}}' \
+  > "$M/.bergant-workflow.json"
+plan mono test 'length' 3
+plan mono test '.[0].source' config
+plan mono lint '.[0].shell' "cd recorder && swift format lint -r Sources"
+# Override keys are matched however the path is spelled.
+printf '{"projects":{"./web":{"skip":true},"transcribe/":{"test":"x"}}}' > "$M/.bergant-workflow.json"
+plan mono test 'map(.status) | join(",")' "run,run,skipped"
+plan mono test '.[1].command' x
+
+# Overrides: a string replaces, null disables, a missing key inherits, skip leaves it out; a
+# root command about no sub-project runs at the root beside them.
+printf '%s' '{"commands":{"test":"scripts/check.sh"},
+  "projects":{"transcribe":{"lint":null,"test":"uv run pytest -q"},"web":{"skip":true}}}' \
+  > "$M/.bergant-workflow.json"
+plan mono lint '.[1].status' none
+plan mono test '.[1].shell' "cd transcribe && uv run pytest -q"
+plan mono test '.[1].source' override
+plan mono test '.[2].status' skipped
+plan mono test '.[3].path + " " + .[3].shell' ". scripts/check.sh"
+plan mono build '.[1].status' none
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" markdown "$M" > "$WORK/md.out"
+check "markdown keeps a root-only test command with no root build" grep -qF -- '- test: `scripts/check.sh`' "$WORK/md.out"
+
+# A root project and a `cd <sub-project>` command: the command is the sub-project's, and the root
+# falls back to its own — it must not run the sub-project's tests a second time.
+RP="$WORK/fx/rootplus"
+mkdir -p "$RP/web" "$RP/my app"
+printf '{"scripts":{"test":"vitest"}}' > "$RP/package.json"
+printf '{"scripts":{"test":"vitest"}}' > "$RP/web/package.json"
+printf '{"scripts":{"test":"vitest"}}' > "$RP/my app/package.json"
+printf '{"commands":{"test":"cd web && npm test"}}' > "$RP/.bergant-workflow.json"
+plan rootplus test 'map(.path + "=" + .shell) | join(",")' ".=npm run test,my app=cd 'my app' && npm run test,web=cd web && npm test"
+jq -n '{commands: {test: "cd \"my app\" && npm test"}}' > "$RP/.bergant-workflow.json"
+plan rootplus test 'map(select(.shell | test("my app"))) | length' 1
+
+# A declared directory driven only by make is a project too.
+mkdir -p "$M/tools"
+printf 'test:\n\techo t\n' > "$M/tools/Makefile"
+printf '{"projects":{"tools":{}}}' > "$M/.bergant-workflow.json"
+plan mono test 'map(select(.path == "tools")) | .[0].shell' "cd tools && make test"
+
+# Declared paths: deeper than the scan reaches, or not created yet.
+mkdir -p "$M/apps/site/inner"
+printf 'module x\n' > "$M/apps/site/inner/go.mod"
+printf '%s' '{"projects":{"apps/site/inner":{},"mobile":{"stack":"swift","planned":true}}}' > "$M/.bergant-workflow.json"
+detect mono '.projects | map(select(.path == "apps/site/inner")) | .[0].test' "go test ./..."
+detect mono '.projects | map(select(.path == "mobile")) | .[0].planned' true
+plan mono test 'map(select(.path == "mobile")) | .[0].status' planned
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" markdown "$M" > "$WORK/md.out"
+check "markdown lists each project with its stack" grep -q '^### `recorder` (swift)$' "$WORK/md.out"
+check "markdown carries the generated-block markers" grep -q 'bergant-workflow:project-commands:end' "$WORK/md.out"
+
+# A broken config is an error, not an empty plan that reads as "nothing to check".
+printf '{"commands":' > "$M/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" test "$M" > /dev/null 2>&1
+check "malformed config exits 2" [ $? -eq 2 ]
+printf '{"commands":{}} trailing' > "$M/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" test "$M" > /dev/null 2>&1
+check "config with trailing junk exits 2" [ $? -eq 2 ]
+rm -f "$M/.bergant-workflow.json"
+
+# Pruned and ignored trees, configurable excludes, two manifests in one place, odd paths.
+P="$WORK/fx/prune"
+mkdir -p "$P/node_modules/x" "$P/fixtures/app" "$P/examples/demo" "$P/gen/api" "$P/my app" "$P/both"
+for d in node_modules/x fixtures/app examples/demo gen/api "my app"; do
+  printf '{"scripts":{"build":"b"}}' > "$P/$d/package.json"
+done
+printf '{"scripts":{"test":"echo \\"Error: no test specified\\" && exit 1"}}' > "$P/both/package.json"
+printf '[project]\nname = "b"\n' > "$P/both/pyproject.toml"
+detect prune '.projects | map(.path) | join(",")' "both,examples/demo,gen/api,my app"
+detect prune '.projects[0].test' null
+detect prune '.projects[0].alsoFound[0]' pyproject.toml
+plan prune build '.[] | select(.path == "my app") | .shell' "cd 'my app' && npm run build"
+printf '{"exclude":["examples"]}' > "$P/.bergant-workflow.json"
+detect prune '.projects | map(.path) | join(",")' "both,gen/api,my app"
+if command -v git >/dev/null 2>&1; then
+  git -C "$P" init -q 2>/dev/null && printf 'gen/\nmy app/\n' > "$P/.gitignore"
+  # The ignored name has a space in it: git quotes such names unless asked for NUL output.
+  detect prune '.projects | map(.path) | join(",")' "both"
+fi
+
+# A declared path that leaves the root through a symlinked parent is refused.
+mkdir -p "$WORK/fx/outside/svc" "$WORK/fx/symroot"
+printf 'module o\n' > "$WORK/fx/outside/svc/go.mod"
+ln -s "$WORK/fx/outside" "$WORK/fx/symroot/link" 2>/dev/null
+printf '{"projects":{"link/svc":{}}}' > "$WORK/fx/symroot/.bergant-workflow.json"
+if [ -L "$WORK/fx/symroot/link" ]; then
+  detect symroot '.projects | length' 0
+else
+  echo "ok   symlink case skipped: symlinks unavailable"; PASS=$((PASS+1))
+fi
+
+# Python evidence: a declared runner with nothing to collect is no test command; black makes
+# ruff a linter only.
+mkdir -p "$WORK/fx/pyno/svc"
+printf '[project]\ndependencies = ["pytest", "ruff", "black"]\n' > "$WORK/fx/pyno/svc/pyproject.toml"
+detect pyno '.projects[0].test' null
+detect pyno '.projects[0].lint' "ruff check ."
+# A test file of one naming convention is enough; the absence of the other must not hide it.
+mkdir -p "$WORK/fx/pyflat/svc"
+printf '[project]\ndependencies = ["pytest"]\n' > "$WORK/fx/pyflat/svc/pyproject.toml"
+touch "$WORK/fx/pyflat/svc/test_one.py"
+detect pyflat '.projects[0].test' pytest
+
+# Swift: lint only with a committed configuration, and it covers the manifest too.
+mkdir -p "$WORK/fx/swfmt/pkg/Sources"
+printf '// swift-tools-version:6.0\n' > "$WORK/fx/swfmt/pkg/Package.swift"
+printf '{}' > "$WORK/fx/swfmt/.swift-format"
+detect swfmt '.projects[0].lint' "swift format lint --strict --recursive Package.swift Sources"
+detect swfmt '.projects[0].test' null
+
+# Workspaces: members are covered only by a root check that provably runs across them.
+W="$WORK/fx/ws"
+mkdir -p "$W/packages/a"
+printf '{"workspaces":["packages/*"],"scripts":{"test":"vitest"}}' > "$W/package.json"
+printf '{"scripts":{"test":"vitest"}}' > "$W/packages/a/package.json"
+plan ws test 'map(.status) | join(",")' "run,run"
+printf '{"workspaces":["packages/*"],"scripts":{"test":"npm run test --workspaces"}}' > "$W/package.json"
+plan ws test 'map(.status) | join(",")' "run,covered"
+# Adoption copies the root's detected command into `commands`; coverage must survive that.
+printf '{"commands":{"test":"npm run test"}}' > "$W/.bergant-workflow.json"
+plan ws test 'map(.status) | join(",")' "run,covered"
+# A member with its own command asked to run, whatever the root covers.
+printf '{"projects":{"packages/a":{"test":"vitest --special"}}}' > "$W/.bergant-workflow.json"
+plan ws test 'map(.status) | join(",")' "run,run"
+rm -f "$W/.bergant-workflow.json"
+printf '{"workspaces":["packages/*"],"scripts":{"test":"turbo test"}}' > "$W/package.json"
+plan ws test 'map(.status) | join(",")' "run,covered"
+# Look-alikes of a workspace-wide run are not one: `rm -r` and a filter to one package.
+for body in 'rm -r tmp && vitest' 'pnpm --filter web test' 'turbo run test --filter=web' \
+            'nx test a' 'pnpm -r --filter a test' 'nx run-many -t test -p a' \
+            'pnpm -r --filter-prod a test'; do
+  jq -n --arg b "$body" '{workspaces: ["packages/*"], scripts: {test: $b}}' > "$W/package.json"
+  plan ws test 'map(.status) | join(",")' "run,run"
+done
+# pnpm negation takes a member out of the workspace.
+P2="$WORK/fx/pnpmneg"
+mkdir -p "$P2/packages/a" "$P2/packages/legacy"
+printf '{"scripts":{"test":"pnpm -r test"}}' > "$P2/package.json"
+printf "packages:\n  - 'packages/*'\n  - '!packages/legacy'\n" > "$P2/pnpm-workspace.yaml"
+touch "$P2/pnpm-lock.yaml"
+printf '{"scripts":{"test":"vitest"}}' > "$P2/packages/a/package.json"
+printf '{"scripts":{"test":"vitest"}}' > "$P2/packages/legacy/package.json"
+plan pnpmneg test 'map(.path + ":" + .status) | join(",")' ".:run,packages/a:covered,packages/legacy:run"
+
+CW="$WORK/fx/cargows"
+mkdir -p "$CW/crates/a" "$CW/crates/b"
+printf '[workspace]\nmembers = ["crates/*"]\nexclude = [\n  "crates/b",\n]\n' > "$CW/Cargo.toml"
+printf '[package]\nname = "a"\n' > "$CW/crates/a/Cargo.toml"
+printf '[package]\nname = "b"\n' > "$CW/crates/b/Cargo.toml"
+detect cargows '.commands.test' "cargo test --workspace"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+# A one-line exclude before members must not swallow members; a path named only in metadata
+# is not a member.
+printf '[workspace]\nexclude = ["crates/b"]\nmembers = ["crates/a"]\n[workspace.metadata]\nx = ["crates/b"]\n' > "$CW/Cargo.toml"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+printf '[workspace]\nmembers = ["crates/a"]\n[workspace.metadata]\nmembers = ["crates/b"]\n' > "$CW/Cargo.toml"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+printf '[workspace]\nmembers = [ # list [a, b]\n  "crates/a",\n]\n' > "$CW/Cargo.toml"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+
+# Run mode: every project runs even after one fails, and the result says which.
+X="$WORK/fx/runall"
+mkdir -p "$X/a" "$X/b"
+printf 'module a\n' > "$X/a/go.mod"; printf 'module b\n' > "$X/b/go.mod"
+printf '%s' '{"projects":{"a":{"test":"exit 3"},"b":{"test":"echo ran-b"}}}' > "$X/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" run test "$X" > "$WORK/run.out" 2>&1
+check "run mode exits non-zero when one project fails" [ $? -eq 1 ]
+check "run mode still runs the project after a failure" grep -q '^ran-b$' "$WORK/run.out"
+check "run mode reports the failure with its exit code" grep -q '^FAIL a (exit 3)' "$WORK/run.out"
+check "run mode reports the pass" grep -q '^PASS b' "$WORK/run.out"
+printf '%s' '{"projects":{"a":{"test":null},"b":{"skip":true}}}' > "$X/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" run test "$X" > "$WORK/run.out" 2>&1
+rc=$?
+check "run mode with nothing to run says so" grep -q '^NOTHING RAN' "$WORK/run.out"
+check "run mode with nothing to run exits 3, not 0" [ "$rc" -eq 3 ]
+# A directory whose name starts with a dash is still a directory, not an option to cd.
+mkdir -p "$X/-dash"
+printf 'module d\n' > "$X/-dash/go.mod"
+printf '%s' '{"projects":{"a":{"skip":true},"b":{"skip":true},"-dash":{"test":"echo in-dash"}}}' > "$X/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" run test "$X" > "$WORK/run.out" 2>&1
+check "a dash-leading directory runs" grep -q '^in-dash$' "$WORK/run.out"
+# A compound override must not run its second half when the cd fails.
+printf '%s' '{"projects":{"a":{"test":"true; echo SHOULD-NOT-RUN"}}}' > "$X/.bergant-workflow.json"
+plan runall test '.[] | select(.path == "a") | .shell' "cd a && (true; echo SHOULD-NOT-RUN)"
+# A trailing comment in a grouped command must not swallow the closing parenthesis.
+printf '%s' '{"projects":{"-dash":{"skip":true},"a":{"test":"echo grouped-ok; # note"}}}' > "$X/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" run test "$X" > "$WORK/run.out" 2>&1
+check "a grouped command with a comment still runs" grep -q '^grouped-ok$' "$WORK/run.out"
+
+for f in "$SCRIPTS"/*.sh; do
+  if "$SHELL_UNDER_TEST" -n "$f" 2>/dev/null; then echo "ok   parses $(basename "$f")"; PASS=$((PASS+1))
+  else echo "FAIL syntax error in $f"; FAIL=$((FAIL+1)); fi
+done
 detect empty '.testSetup' null
 
 detect empty '.hasSourceCode' false
@@ -563,7 +804,7 @@ echo "$PASS passed, $FAIL failed"
 
 # Truncating this file used to leave it green: fewer assertions is not fewer failures. The
 # expected count is asserted so deleting cases is itself a failure. Raise it when adding tests.
-EXPECTED=106
+EXPECTED=182
 if [ $((PASS + FAIL)) -lt "$EXPECTED" ]; then
   echo "FAIL only $((PASS + FAIL)) assertions ran, expected at least $EXPECTED — did the suite get truncated?"
   FAIL=$((FAIL + 1))

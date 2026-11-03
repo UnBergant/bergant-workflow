@@ -480,6 +480,17 @@ Wireframes MUST be approved before page implementation begins.
 <Same rule as the design system: versions come from the registry or the release page with the
 date they were checked, or they say `unpinned`. "Latest" is not a version.>
 
+## Project Layout
+| Path | Stack | Purpose |
+|------|-------|---------|
+| `.` or `<dir>` | node / python / swift / go / rust | <what lives there> |
+
+<One row per project with its own manifest: a single-project repository has one row, `.`. A
+repository of several — `api/` in Go and `web/` in Node, say — has one row each and none for
+the root unless the root has its own manifest. Stack is one of the five words above, nothing
+else: FINALIZE copies this table into `.bergant-workflow.json`, and the lifecycle checks every
+row from the first slice on, before any code exists in it.>
+
 ## Deployment & Infrastructure
 <hosting, CI/CD, environments, monitoring>
 
@@ -704,6 +715,26 @@ Adjust the build/deps block to the project's actual stack (from `docs/architectu
 If any of these files are already tracked in git, warn the user and suggest
 `git rm --cached <file>` so they stop being committed.
 
+**Step 1c — Record the project layout for the lifecycle.** Read the `## Project Layout` table
+from `docs/architecture.md`. For every row except `.`, add an entry to `projects` in
+`.bergant-workflow.json` at the project root: `"<path>": {"stack": "<stack>", "planned": true}`.
+Create the file with only `projects` if it does not exist; if it does, add missing paths and
+leave every existing key and entry exactly as it is. Do **not** write `commands` — that is
+adoption's question to ask, and a file without it still sends the first `lifecycle start`
+through ADOPT, which keeps `projects`. Then generate the shared command list, so people and
+agents read the same one from the start. `project-commands.sh` sits beside the
+`detect-project.sh` that `start` ran in step 0; use that same absolute directory — a
+`${CLAUDE_PLUGIN_ROOT}` written in this file is not expanded:
+
+```
+mkdir -p docs && bash "<scripts dir>/project-commands.sh" markdown > docs/bergant-workflow-commands.md
+```
+
+Planned projects show as "not created yet" until their manifest appears; the lifecycle then
+picks up their real commands on its own. Add one line to the `CLAUDE.md` from Step 1:
+`Build, lint and test commands for every project: docs/bergant-workflow-commands.md.`
+Single-project repositories (one row, `.`) skip the config entry but still get the file.
+
 **Step 2 — Update state** → all phases completed.
 
 **Step 3 — Clean up state file.** Delete `docs/spec-state.json` — it was a transient orchestration artifact. All decisions are persisted in docs and CLAUDE.md.
@@ -719,6 +750,7 @@ Generated:
 - docs/plan/phase-1.md ... phase-N.md
 - docs/plan/slice-001.md ... slice-NNN.md
 - CLAUDE.md (created / updated)
+- .bergant-workflow.json (planned projects) and docs/bergant-workflow-commands.md
 
 Jira: Epic <key> → N tasks, M subtasks (or "Jira: skipped")
 

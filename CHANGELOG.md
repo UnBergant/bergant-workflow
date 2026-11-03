@@ -4,6 +4,49 @@ All notable changes to this plugin are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] — 2026-11-03
+
+### Added
+- **Sub-projects are found and checked.** `scripts/detect-project.sh` now scans the root and
+  every directory one or two levels down for a manifest (`package.json`, `Package.swift`,
+  `pyproject.toml`, `go.mod`, `Cargo.toml`) and reports them as `projects: [{path, stack,
+  build, lint, test, e2e}]`. Paths listed under `projects` in `.bergant-workflow.json` are
+  checked at any depth. Dependency trees, build output, hidden and gitignored directories,
+  `fixtures`, `testdata` and `templates` are skipped; `exclude` skips anything else.
+- **Swift.** `swift build`; `swift test` when the package has a test target;
+  `swift format lint --strict` when a `.swift-format` configuration is committed.
+- **uv.** A Python project with `uv.lock` runs `uv run pytest` and `uv run ruff check .`, plus
+  `ruff format --check .` unless black is the declared formatter.
+- `scripts/project-commands.sh`: the plan every step runs — per project, which command, from
+  where, and why (`detected`, `override`, `config`) — as JSON, as markdown, or executed with
+  `run <kind>`, which runs every project in turn, keeps going after a failure, and ends with
+  a `PASS` / `FAIL` / `SKIP` line per project. "NOTHING RAN" is said and exits 3, never 0.
+- `docs/bergant-workflow-commands.md`: the same plan for people, regenerated at adoption, at
+  each `start` and at `CLOSE`, with one pointer line in `CLAUDE.md` / `AGENTS.md`.
+- `project-init` writes a `Project Layout` table into `architecture.md` and records its rows in
+  `.bergant-workflow.json` as planned projects, so the lifecycle checks them as soon as their
+  code exists.
+
+### Changed
+- IMPLEMENT, VERIFY, TEST, REVIEW and CLOSE run every project's checks through
+  `project-commands.sh run`, rediscovering projects each time. `commands.*` is now the root's
+  override, not the only source; `projects.<path>` holds per-project overrides (`null`
+  disables, `skip` leaves a project out).
+- TEST always runs the suite. The skip condition now waives only writing new tests.
+- A test command needs something to run: pytest needs a tests directory, `test_*.py`, a
+  conftest or `testpaths`; npm's "no test specified" placeholder is not a test command.
+- Workspace members are skipped only when the root's command provably covers them
+  (`cargo … --workspace`, or a root script that runs across the workspace).
+- **Possible new lint failure:** a Python project that mentions ruff now also gets
+  `ruff format --check .` (unless black is declared). A project that uses ruff only as a linter
+  keeps the old behaviour with `"projects": {"<path>": {"lint": "ruff check ."}}` (or
+  `commands.lint` at the root); `start` points this out when the generated list changes.
+
+### Migration
+- A top-level command written as `cd <sub-project> && …` is treated as that sub-project's
+  command, so existing configurations run each check once, not twice. `start` proposes moving
+  it into `projects.<sub-project>`; nothing is rewritten unasked.
+
 ## [0.12.3] — 2026-08-31
 
 ### Fixed
