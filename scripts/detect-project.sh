@@ -88,11 +88,12 @@ detect_dir() {
         [ -n "$cmd" ] || continue
         body=$(script_of "${cmd##* }")
         # Only forms that run every member: a package manager's recursive flag, `yarn
-        # workspaces foreach`, `turbo run`, `nx run-many` or `lerna run` — and none of them
-        # narrowed by a filter. A bare `-r` is as likely to be `rm -r`, `nx test a` runs one
-        # project, and `--filter` names a subset.
-        if { printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(pnpm|npm|yarn|bun)[[:space:]]([^;&|]*[[:space:]])?(-r|--recursive|-ws|--workspaces)([[:space:]]|$)|yarn workspaces foreach|(^|[;&|[:space:]])(turbo[[:space:]]+run|nx[[:space:]]+run-many|lerna[[:space:]]+run)[[:space:]]'; } \
-           && ! printf '%s' "$body" | grep -qE -- '(--(filter|scope|projects?|ignore)|(^|[[:space:]])-F)([[:space:]=]|$)'; then
+        # workspaces foreach`, `turbo [run] <task>`, `nx run-many` or `lerna run` — and none of
+        # them narrowed by a filter. A bare `-r` is as likely to be `rm -r`, `nx test a` runs one
+        # project, and `--filter`, `--filter-prod`, `-p`, `--projects` or `--scope` name a
+        # subset. A miss here only runs a member twice; a false match stops it running at all.
+        if { printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(pnpm|npm|yarn|bun)[[:space:]]([^;&|]*[[:space:]])?(-r|--recursive|-ws|--workspaces)([[:space:]]|$)|yarn workspaces foreach|(^|[;&|[:space:]])(turbo|nx[[:space:]]+run-many|lerna[[:space:]]+run)[[:space:]]'; } \
+           && ! printf '%s' "$body" | grep -qE -- '(--(filter[a-z-]*|scope|projects?|ignore|exclude)|(^|[[:space:]])-[Fp])([[:space:]=]|$)'; then
           D_COVERS="$D_COVERS $kind"
         fi
       done
@@ -260,11 +261,14 @@ SUBDIRS=$(find . -mindepth 1 -maxdepth 2 \
 IGNORED=$(printf '%s\n' "$SUBDIRS" | tr '\n' '\000' | git check-ignore -z --stdin 2>/dev/null | tr '\000' '\n')
 is_ignored() { [ -n "$IGNORED" ] && printf '%s\n' "$IGNORED" | grep -qxF -- "$1"; }
 
-# cargo_array <key> — the lines of `<key> = [...]` in Cargo.toml, from the key to its closing
-# bracket, which may be on the same line.
+# cargo_array <key> — the lines of `<key> = [...]` in Cargo.toml's `[workspace]` table, from the
+# key to its closing bracket, which may be on the same line. Comments are dropped first, so a
+# `]` in one does not end the array; the same key under `[workspace.metadata]` is not read.
 cargo_array() {
   awk -v k="$1" '
-    !on && $0 ~ "^[[:space:]]*" k "[[:space:]]*=" { on = 1 }
+    { sub(/#.*/, "") }
+    /^[[:space:]]*\[/ { sect = $0; gsub(/[[:space:]]/, "", sect); on = 0 }
+    !on && sect == "[workspace]" && $0 ~ "^[[:space:]]*" k "[[:space:]]*=" { on = 1 }
     on { print; if ($0 ~ /\]/) on = 0 }' Cargo.toml 2>/dev/null
 }
 

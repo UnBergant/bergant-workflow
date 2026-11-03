@@ -671,9 +671,12 @@ plan ws test 'map(.status) | join(",")' "run,covered"
 printf '{"projects":{"packages/a":{"test":"vitest --special"}}}' > "$W/.bergant-workflow.json"
 plan ws test 'map(.status) | join(",")' "run,run"
 rm -f "$W/.bergant-workflow.json"
+printf '{"workspaces":["packages/*"],"scripts":{"test":"turbo test"}}' > "$W/package.json"
+plan ws test 'map(.status) | join(",")' "run,covered"
 # Look-alikes of a workspace-wide run are not one: `rm -r` and a filter to one package.
 for body in 'rm -r tmp && vitest' 'pnpm --filter web test' 'turbo run test --filter=web' \
-            'nx test a' 'pnpm -r --filter a test'; do
+            'nx test a' 'pnpm -r --filter a test' 'nx run-many -t test -p a' \
+            'pnpm -r --filter-prod a test'; do
   jq -n --arg b "$body" '{workspaces: ["packages/*"], scripts: {test: $b}}' > "$W/package.json"
   plan ws test 'map(.status) | join(",")' "run,run"
 done
@@ -698,7 +701,9 @@ plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:cover
 # is not a member.
 printf '[workspace]\nexclude = ["crates/b"]\nmembers = ["crates/a"]\n[workspace.metadata]\nx = ["crates/b"]\n' > "$CW/Cargo.toml"
 plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
-printf '[workspace]\nmembers = ["crates/a"]\n[workspace.metadata]\ny = ["crates/b"]\n' > "$CW/Cargo.toml"
+printf '[workspace]\nmembers = ["crates/a"]\n[workspace.metadata]\nmembers = ["crates/b"]\n' > "$CW/Cargo.toml"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+printf '[workspace]\nmembers = [ # list [a, b]\n  "crates/a",\n]\n' > "$CW/Cargo.toml"
 plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
 
 # Run mode: every project runs even after one fails, and the result says which.
@@ -799,7 +804,7 @@ echo "$PASS passed, $FAIL failed"
 
 # Truncating this file used to leave it green: fewer assertions is not fewer failures. The
 # expected count is asserted so deleting cases is itself a failure. Raise it when adding tests.
-EXPECTED=178
+EXPECTED=182
 if [ $((PASS + FAIL)) -lt "$EXPECTED" ]; then
   echo "FAIL only $((PASS + FAIL)) assertions ran, expected at least $EXPECTED — did the suite get truncated?"
   FAIL=$((FAIL + 1))
