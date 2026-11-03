@@ -88,11 +88,11 @@ detect_dir() {
         [ -n "$cmd" ] || continue
         body=$(script_of "${cmd##* }")
         # Only forms that run every member: a package manager's recursive flag, `yarn
-        # workspaces foreach`, or a monorepo runner with no filter narrowing it to one package.
-        # A bare `-r` is as likely to be `rm -r`, and `--filter` names a subset.
-        if printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(pnpm|npm|yarn|bun)[[:space:]]([^;&|]*[[:space:]])?(-r|--recursive|-ws|--workspaces)([[:space:]]|$)|yarn workspaces foreach' \
-           || { printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(turbo|nx|lerna)[[:space:]]' \
-                && ! printf '%s' "$body" | grep -qE -- '--(filter|scope|projects?)([[:space:]=]|$)'; }; then
+        # workspaces foreach`, `turbo run`, `nx run-many` or `lerna run` — and none of them
+        # narrowed by a filter. A bare `-r` is as likely to be `rm -r`, `nx test a` runs one
+        # project, and `--filter` names a subset.
+        if { printf '%s' "$body" | grep -qE '(^|[;&|[:space:]])(pnpm|npm|yarn|bun)[[:space:]]([^;&|]*[[:space:]])?(-r|--recursive|-ws|--workspaces)([[:space:]]|$)|yarn workspaces foreach|(^|[;&|[:space:]])(turbo[[:space:]]+run|nx[[:space:]]+run-many|lerna[[:space:]]+run)[[:space:]]'; } \
+           && ! printf '%s' "$body" | grep -qE -- '(--(filter|scope|projects?|ignore)|(^|[[:space:]])-F)([[:space:]=]|$)'; then
           D_COVERS="$D_COVERS $kind"
         fi
       done
@@ -260,6 +260,14 @@ SUBDIRS=$(find . -mindepth 1 -maxdepth 2 \
 IGNORED=$(printf '%s\n' "$SUBDIRS" | tr '\n' '\000' | git check-ignore -z --stdin 2>/dev/null | tr '\000' '\n')
 is_ignored() { [ -n "$IGNORED" ] && printf '%s\n' "$IGNORED" | grep -qxF -- "$1"; }
 
+# cargo_array <key> — the lines of `<key> = [...]` in Cargo.toml, from the key to its closing
+# bracket, which may be on the same line.
+cargo_array() {
+  awk -v k="$1" '
+    !on && $0 ~ "^[[:space:]]*" k "[[:space:]]*=" { on = 1 }
+    on { print; if ($0 ~ /\]/) on = 0 }' Cargo.toml 2>/dev/null
+}
+
 # is_member <dir> — the workspace manifest names this directory, directly or by its parent's
 # glob, and does not exclude it. Text matching, deliberately: evaluating the manifest would mean
 # running the package manager.
@@ -271,13 +279,15 @@ is_member() {
   pe=$(printf '%s' "$parent" | sed 's/[][\.*^$+?(){}|]/\\&/g')
   for f in package.json pnpm-workspace.yaml Cargo.toml; do
     [ -f "$f" ] || continue
-    # pnpm negation (`!packages/legacy`) and a quoted path anywhere in Cargo's `exclude` — a
-    # multi-line array included — take a member out.
-    grep -qE "[\"']!(\./)?$me[\"']" "$f" 2>/dev/null && return 1
-    if [ "$f" = "Cargo.toml" ] \
-       && sed -n '/^[[:space:]]*exclude[[:space:]]*=/,/\]/p' "$f" 2>/dev/null | grep -qE "[\"'](\./)?$me[\"']"; then
-      return 1
+    if [ "$f" = "Cargo.toml" ]; then
+      # Only the `members` and `exclude` arrays count, single- or multi-line; a path that merely
+      # appears elsewhere in the manifest (`[workspace.metadata]`, say) proves nothing.
+      cargo_array exclude | grep -qE "[\"'](\./)?$me[\"']" && return 1
+      cargo_array members | grep -qE "[\"'](\./)?($me|$pe/\*|$pe/\*\*)[\"']" && return 0
+      continue
     fi
+    # pnpm negation (`!packages/legacy`) takes a member out.
+    grep -qE "[\"']!(\./)?$me[\"']" "$f" 2>/dev/null && return 1
     grep -qE "[\"'](\./)?($me|$pe/\*|$pe/\*\*)[\"']" "$f" 2>/dev/null && return 0
   done
   return 1
@@ -302,6 +312,7 @@ emit() {
     >> "$PROJ_FILE" 2>/dev/null
 }
 
+ROOT_PHYS=$(pwd -P)
 if have jq && [ -n "$PROJ_FILE" ]; then
   [ -n "$D_STACK" ] && emit . false
   printf '%s\n%s\n' "$SUBDIRS" "$CONFIG_PATHS" | while IFS= read -r d; do
@@ -310,6 +321,10 @@ if have jq && [ -n "$PROJ_FILE" ]; then
     # Never leave the repository: no absolute or drive paths, no `..`, no symlinked directory.
     case "$d" in /*|[A-Za-z]:*|..|../*|*/../*|*/..) continue ;; esac
     [ -L "$d" ] && continue
+    # …and no symlink further up: an existing directory must resolve inside the root.
+    if [ -d "$d" ]; then
+      case "$(cd "./$d" 2>/dev/null && pwd -P)" in "$ROOT_PHYS"/*) ;; *) continue ;; esac
+    fi
     declared=false
     printf '%s\n' "$CONFIG_PATHS" | grep -qxF -- "$d" && declared=true
     # A declared path is the project's own word and bypasses the filters; everything found by

@@ -626,6 +626,17 @@ if command -v git >/dev/null 2>&1; then
   detect prune '.projects | map(.path) | join(",")' "both"
 fi
 
+# A declared path that leaves the root through a symlinked parent is refused.
+mkdir -p "$WORK/fx/outside/svc" "$WORK/fx/symroot"
+printf 'module o\n' > "$WORK/fx/outside/svc/go.mod"
+ln -s "$WORK/fx/outside" "$WORK/fx/symroot/link" 2>/dev/null
+printf '{"projects":{"link/svc":{}}}' > "$WORK/fx/symroot/.bergant-workflow.json"
+if [ -L "$WORK/fx/symroot/link" ]; then
+  detect symroot '.projects | length' 0
+else
+  echo "ok   symlink case skipped: symlinks unavailable"; PASS=$((PASS+1))
+fi
+
 # Python evidence: a declared runner with nothing to collect is no test command; black makes
 # ruff a linter only.
 mkdir -p "$WORK/fx/pyno/svc"
@@ -661,7 +672,8 @@ printf '{"projects":{"packages/a":{"test":"vitest --special"}}}' > "$W/.bergant-
 plan ws test 'map(.status) | join(",")' "run,run"
 rm -f "$W/.bergant-workflow.json"
 # Look-alikes of a workspace-wide run are not one: `rm -r` and a filter to one package.
-for body in 'rm -r tmp && vitest' 'pnpm --filter web test' 'turbo run test --filter=web'; do
+for body in 'rm -r tmp && vitest' 'pnpm --filter web test' 'turbo run test --filter=web' \
+            'nx test a' 'pnpm -r --filter a test'; do
   jq -n --arg b "$body" '{workspaces: ["packages/*"], scripts: {test: $b}}' > "$W/package.json"
   plan ws test 'map(.status) | join(",")' "run,run"
 done
@@ -681,6 +693,12 @@ printf '[workspace]\nmembers = ["crates/*"]\nexclude = [\n  "crates/b",\n]\n' > 
 printf '[package]\nname = "a"\n' > "$CW/crates/a/Cargo.toml"
 printf '[package]\nname = "b"\n' > "$CW/crates/b/Cargo.toml"
 detect cargows '.commands.test' "cargo test --workspace"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+# A one-line exclude before members must not swallow members; a path named only in metadata
+# is not a member.
+printf '[workspace]\nexclude = ["crates/b"]\nmembers = ["crates/a"]\n[workspace.metadata]\nx = ["crates/b"]\n' > "$CW/Cargo.toml"
+plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
+printf '[workspace]\nmembers = ["crates/a"]\n[workspace.metadata]\ny = ["crates/b"]\n' > "$CW/Cargo.toml"
 plan cargows test 'map(.path + ":" + .status) | join(",")' ".:run,crates/a:covered,crates/b:run"
 
 # Run mode: every project runs even after one fails, and the result says which.
@@ -707,6 +725,10 @@ check "a dash-leading directory runs" grep -q '^in-dash$' "$WORK/run.out"
 # A compound override must not run its second half when the cd fails.
 printf '%s' '{"projects":{"a":{"test":"true; echo SHOULD-NOT-RUN"}}}' > "$X/.bergant-workflow.json"
 plan runall test '.[] | select(.path == "a") | .shell' "cd a && (true; echo SHOULD-NOT-RUN)"
+# A trailing comment in a grouped command must not swallow the closing parenthesis.
+printf '%s' '{"projects":{"-dash":{"skip":true},"a":{"test":"echo grouped-ok; # note"}}}' > "$X/.bergant-workflow.json"
+"$SHELL_UNDER_TEST" "$SCRIPTS/project-commands.sh" run test "$X" > "$WORK/run.out" 2>&1
+check "a grouped command with a comment still runs" grep -q '^grouped-ok$' "$WORK/run.out"
 
 for f in "$SCRIPTS"/*.sh; do
   if "$SHELL_UNDER_TEST" -n "$f" 2>/dev/null; then echo "ok   parses $(basename "$f")"; PASS=$((PASS+1))
@@ -777,7 +799,7 @@ echo "$PASS passed, $FAIL failed"
 
 # Truncating this file used to leave it green: fewer assertions is not fewer failures. The
 # expected count is asserted so deleting cases is itself a failure. Raise it when adding tests.
-EXPECTED=172
+EXPECTED=178
 if [ $((PASS + FAIL)) -lt "$EXPECTED" ]; then
   echo "FAIL only $((PASS + FAIL)) assertions ran, expected at least $EXPECTED — did the suite get truncated?"
   FAIL=$((FAIL + 1))

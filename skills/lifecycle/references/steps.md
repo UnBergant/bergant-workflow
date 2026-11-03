@@ -33,7 +33,9 @@ CONTEXT_CHECK, and before the final commit at CLOSE. If the repository has a `CL
 
 ## ADOPT (runs once per project, at the start of CONTEXT_CHECK)
 
-Skip entirely if `.bergant-workflow.json` exists AND has a `commands` object. If it holds only
+Skip entirely if `.bergant-workflow.json` exists AND has a `commands` object — unless it says
+`"adoptedFrom": "empty"` and detection now finds a project, which is the re-adoption described
+under "Empty repository?" below. If it holds only
 `projects` (and maybe `exclude`), `project-init` started it: adopt, keeping those. If it is
 malformed, say so and adopt again. Otherwise the project has never
 been through this plugin, and guessing how it builds and where its plan lives is how a tool

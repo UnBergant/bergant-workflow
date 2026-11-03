@@ -68,7 +68,9 @@ def shq: (if startswith("-") then "./" + . else . end)
 def norm: sub("^\\./"; "") | sub("/$"; "");
 # A command that is more than an && chain is grouped, so nothing in it runs when the cd fails.
 def line($cwd; $cmd): if $cwd == "." then $cmd
-  elif ($cmd | gsub("&&"; "") | test("[;|&\n]")) then "cd \($cwd | shq) && (\($cmd))"
+  elif ($cmd | gsub("&&"; "") | test("[;|&\n]")) then
+    # A trailing `# comment` would swallow the closing parenthesis on the same line.
+    "cd \($cwd | shq) && (\($cmd)\(if ($cmd | test("#")) then "\n" else "" end))"
   else "cd \($cwd | shq) && \($cmd)" end;
 
 def resolve($k):
@@ -123,7 +125,10 @@ def resolve($k):
             source: "config", status: "run"}]
      else [] end);
 
-def code: if test("`") then "`` \(.) ``" else "`\(.)`" end;
+# A code span needs a delimiter longer than any run of backticks inside it.
+def code: ([scan("`+") | length] | max // 0) as $n
+  | ("`" * ($n + 1)) as $d
+  | if $n == 0 then "`\(.)`" else "\($d) \(.) \($d)" end;
 def mdcell($row): if $row.status == "run" then ($row.shell | code)
   elif $row.status == "covered" then "run by the workspace root"
   elif $row.status == "skipped" then "skipped (configured)"
