@@ -2,6 +2,34 @@
 
 Read only the section for the current step. Do not load the entire file into context.
 
+## Project commands (used by every step that builds, lints or tests)
+
+A repository can hold several projects — a Swift package in `recorder/`, a uv project in
+`transcribe/`, a web app in `web/` — and every check runs against **all of them**, not only the
+root. Never assemble the commands yourself and never run only `commands.*`:
+
+- `bash "SCRIPTS_DIR/project-commands.sh" run <build|lint|test|e2e>` runs every project's
+  command for that check, one after another from the repository root, keeps going after a
+  failure, and ends with one `PASS` / `FAIL` / `SKIP` line per project. Exit 1 means at least
+  one failed. Report that summary as it is; a `SKIP … none` is a project with no such command,
+  and `NOTHING RAN` means no tests ran, which is never "tests passed".
+- `bash "SCRIPTS_DIR/project-commands.sh" <kind>` prints the same plan as JSON without running
+  it, and `… markdown` prints it for people.
+
+Projects are rediscovered on every call: the root, every directory one or two levels down with
+a manifest (`package.json`, `Package.swift`, `pyproject.toml`, `go.mod`, `Cargo.toml`), and every
+path listed under `projects` in `.bergant-workflow.json`. A sub-project created since adoption
+is therefore checked from the next step on, without editing the config. What the config says
+is applied on top — see `project-config.md` for `commands`, `projects` and `exclude`.
+
+**The shared list.** The same plan, written for people, lives in
+`docs/bergant-workflow-commands.md`. It is regenerated, never edited by hand:
+`bash "SCRIPTS_DIR/project-commands.sh" markdown > docs/bergant-workflow-commands.md`
+(`mkdir -p docs` first). It is refreshed at ADOPT, after the task branch is created in
+CONTEXT_CHECK, and before the final commit at CLOSE. If the repository has a `CLAUDE.md` or
+`AGENTS.md` that does not mention the file yet, add one line to it once:
+`Build, lint and test commands for every project: docs/bergant-workflow-commands.md.`
+
 ## ADOPT (runs once per project, at the start of CONTEXT_CHECK)
 
 Skip entirely if `.bergant-workflow.json` exists AND has a `commands` object. If it exists but
@@ -14,7 +42,10 @@ Adoption writes a file and offers to commit it, and doing that on a dirty tree, 
 HEAD, or a half-finished rebase is exactly the surgery the preflight exists to prevent.
 
 1. Run `bash "SCRIPTS_DIR/detect-project.sh"` — the absolute path given in the agent prompt,
-   not a literal `SCRIPTS_DIR`. It prints JSON and never fails.
+   not a literal `SCRIPTS_DIR`. It prints JSON and never fails. `projects` lists every project
+   it found, the root included when it has a manifest; `stack` and `commands` describe the root
+   alone. If `.bergant-workflow.json` already exists without `commands` — `project-init` wrote
+   only the planned layout — keep its `projects` and `exclude` and add to them, never replace.
 2. **Plan documents**, in order:
    - `nativePlan: true` → use `docs/plan/slice-*.md`, say so, ask nothing.
    - exactly one candidate → propose it: "Is `<path>` the plan I should work from?"
@@ -22,13 +53,23 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
    - none → say that plainly and offer to work from task descriptions instead.
    In every branch the user may answer "no plan" — that is a normal project, not a broken one,
    and it records as `"planGlob": null`.
-3. **Commands**: show what was detected (`build`, `lint`, `test`, `e2e`) and what came back
-   empty. Ask the user to correct or fill them. Never invent one: a project with no lint
-   command has no lint command, and `VERIFY` will skip that check and say it skipped it.
+3. **Commands**: show the output of `bash "SCRIPTS_DIR/project-commands.sh" markdown` — every
+   project with its `build`, `lint`, `test` and `e2e`, and what came back empty. Ask the user
+   to correct or fill them. A correction for the root goes in `commands`, one for a
+   sub-project in `projects.<path>` (`"lint": "..."` replaces, `null` disables, `"skip": true`
+   leaves the project out), and a directory that is not a project of theirs goes in `exclude`.
+   A project with a `note` has a second manifest whose commands only the user can give. Never
+   invent one: a project with no lint command has no lint command, and `VERIFY` will skip that
+   check and say it skipped it.
    - **No test command is the common case, not an edge case.** Most repositories have no tests
      at all, and not having to work out how to add them is a large part of why this exists. So
      do not record `null` and move on — make the offer, using `testSetup` from the detection
      output, which names a runner that fits the stack.
+
+     The offer is per project. `testSetup` in the detection output is the root's; for a
+     sub-project without a test command, name the runner its stack uses and record the answer
+     under `projects.<path>` (`testSetupAccepted`, `testSetupDeclined`) — never at the root,
+     or the runner gets installed in the wrong place.
 
      **Recommend, with the reason, in plain words.** The person reading may not know what the
      runner is or why they would want one, so say what it costs and what it buys:
@@ -65,23 +106,26 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 
      Record the answer:
      - accepted → `"testSetupAccepted": "<runner>"`
-     - they gave their own → put it straight in `commands.test`
+     - they gave their own → put it straight in `commands.test` (`projects.<path>.test` for a
+       sub-project)
      - "not now" → `"testSetupDeclined": "once"`
      - "never ask again" → `"testSetupDeclined": "always"`
      - no answer at all → record nothing. Silence is not a decline; the offer stands.
 
      **Never install anything at this point.** Adoption's job is to ask, and an install belongs
      in a branch, not in the step that reads the repository.
-   - **Empty repository?** If every command is `null` and there is no manifest yet — the
+   - **Empty repository?** If every command is `null` and `projects` is empty — the
      `project-init` path, where the code does not exist yet — say so, record what you have, and
      set `"adoptedFrom": "empty"`. The first later step that finds a manifest re-runs ADOPT
      rather than reporting "not configured" for the rest of the project's life.
 4. **STOP HERE** until the user has confirmed both halves. This is a user gate in everything but
    name: everything the lifecycle later runs against their code comes from these two answers.
-5. Only then write `.bergant-workflow.json` at the project root, and commit it by exact path,
-   never with `-A` or `.`:
+5. Only then write `.bergant-workflow.json` at the project root — `commands` holds the root's
+   commands, all `null` when the root is not a project — then regenerate
+   `docs/bergant-workflow-commands.md` from it (see "Project commands" above), and commit both
+   by exact path, never with `-A` or `.`:
    ```
-   git add .bergant-workflow.json && git commit -m "chore: adopt bergant-workflow"
+   git add .bergant-workflow.json docs/bergant-workflow-commands.md && git commit -m "chore: adopt bergant-workflow"
    ```
    If the tree was dirty and the user chose to continue anyway, do **not** commit — write the
    file, say it is uncommitted, and let them commit it with their own work. Then continue with
@@ -114,6 +158,17 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
   at REVIEW and CLOSE.
   Update `"branch"` and `"baseBranch"` in state. `--ff-only` so a diverged local base fails
   loudly instead of producing a merge.
+- **Refresh the project commands**, on the new branch: regenerate
+  `docs/bergant-workflow-commands.md` (see "Project commands" at the top). If it changed, show
+  the user the diff in one message — a new line is a check the steps will now run, a removed
+  one a check they no longer will — and leave the file for the slice's commit. Two cases get a
+  concrete proposal, applied only if they say yes:
+  - a top-level command of the form `cd <sub-project> && …` (written before discovery
+    existed): propose moving it to `projects.<sub-project>` without the `cd`. Until then it is
+    already treated as that sub-project's command and runs once, not twice.
+  - a check that is new for an existing project and that the user may not want (`ruff format
+    --check` beside `ruff check`, say): propose a `projects.<path>` override that keeps the old
+    behaviour.
 - After `/compact`: SessionStart(compact) hook clears `awaitingCompact`.
 - The gate blocks agent launches and edit tools while the flag is set; `Bash` is deliberately
   left alone so the user can still look around while deciding. If the user explicitly says to
@@ -186,13 +241,16 @@ may close on its own, and only for this reason — say out loud that it was skip
   - Update subtask status to `in_progress`.
   - Launch Agent(general-purpose) with focused instructions.
   - On return: update subtask to `completed`.
-- When all done: run `commands.build` and `commands.lint` from `.bergant-workflow.json`. A `null` command is skipped, and the skip is reported.
+- When all done: `bash "SCRIPTS_DIR/project-commands.sh" run build`, then `… run lint` — every
+  project, see "Project commands". A project without the command is a reported skip.
 - If pass: mark IMPLEMENT completed, advance.
 - If fail: fix, re-check.
 
 ## VERIFY (gate: user)
 
-- Run `commands.build` and `commands.lint`. Report any that are `null` as not configured rather than substituting something.
+- `bash "SCRIPTS_DIR/project-commands.sh" run build`, then `… run lint`: every project's
+  build and every linter. Report each skip as not configured rather than substituting
+  something.
 - Display test plan: task-specific manual checks (user-facing checklist, not developer checklist).
 - **STOP HERE.** `When done: /bergant-workflow:lifecycle complete VERIFY`
 - Do NOT proceed further.
@@ -201,15 +259,19 @@ may close on its own, and only for this reason — say out loud that it was skip
 
 - Write unit tests for new business logic, in whatever the project already uses — infer the framework from existing tests, never introduce a new one inside a slice.
 - Write E2E tests if UI changed and the project has an E2E setup.
-- Run `commands.test` (and `commands.e2e` if the slice touched UI and one is configured).
+- `bash "SCRIPTS_DIR/project-commands.sh" run test` — the tests of **every** project, every
+  time, not only the one this slice touched (and `… run e2e` if the slice touched UI). A
+  failure in a project the slice did not touch is still a failure: report it, do not wave it
+  through.
 - Mark TEST completed, advance.
 
-**No test runner yet?** Check `.bergant-workflow.json` before deciding there is nothing to run:
-- `commands.test` set → use it.
-- `testSetupAccepted` set → this is the slice that sets it up. Install the runner with the
+**No test runner yet?** Per project, check `.bergant-workflow.json` (`projects.<path>` for a
+sub-project, the top level for the root) before deciding there is nothing to run:
+- a test command, detected or configured → it runs.
+- `testSetupAccepted` set → this is the slice that sets it up, in that project's directory. Install the runner with the
   project's own package manager, add the minimal config it needs, write the tests for this
-  slice, run them. Record the resulting command in `commands.test` so no later slice repeats
-  this. Do not pin a version from memory — let the package manager resolve it.
+  slice, run them. Record the resulting command (`commands.test`, or `projects.<path>.test`)
+  unless detection already finds it, so no later slice repeats this. Do not pin a version from memory — let the package manager resolve it.
 - `testSetupDeclined: "once"` → **ask again here, and only here**: this is the first slice that
   actually added logic, so the cost of having no tests is concrete rather than hypothetical.
   Show what this slice would have been covered by. If they decline a second time, write
@@ -218,9 +280,10 @@ may close on its own, and only for this reason — say out loud that it was skip
   `skipReason: "test setup declined"`, and never raise it again.
 - None of the above → adoption never ran properly; run ADOPT.
 
-**Skip condition:** If the slice added no business logic and touched no UI — docs, config,
-or a pure refactor already covered by existing tests — auto-complete TEST and write the
-reason into `steps.TEST.skipReason`. Never skip it silently: the `Stop` hook refuses to end
+**Skip condition — writing tests only.** If the slice added no business logic and touched no
+UI — docs, config, or a pure refactor already covered by existing tests — writing new tests is
+waived: write the reason into `steps.TEST.skipReason`. **The suite still runs**, it is quick,
+and a config change is exactly what breaks a project nobody touched. Never skip silently: the `Stop` hook refuses to end
 the turn once REVIEW starts while TEST is unfinished, and a slice that shipped logic with an
 empty `skipReason` means tests were dropped, not waived.
 
@@ -248,7 +311,7 @@ empty `skipReason` means tests were dropped, not waived.
 - **STOP.** Ask user which fixes to apply.
 
 **On `/bergant-workflow:lifecycle complete REVIEW`:**
-- Apply fixes, commit, build/lint, mark completed, advance.
+- Apply fixes, commit, `project-commands.sh run build` and `run lint`, mark completed, advance.
 
 ## DOCUMENT
 
@@ -284,8 +347,10 @@ than repeating a step.
 ## CLOSE (gate: user)
 
 **Phase 1 — Create PR:**
-- Run final: `commands.build`, `commands.test`.
-- Commit remaining changes (if any).
+- Run final: `bash "SCRIPTS_DIR/project-commands.sh" run build`, then `… run test`.
+- Regenerate `docs/bergant-workflow-commands.md`: a project created during the slice belongs
+  in it.
+- Commit remaining changes (if any), by exact path.
 - Push branch to remote.
 - Create PR: `gh pr create --base <base> --title "..." --body "..."`. If `gh` is unavailable,
   fall back to GitHub MCP `create_pull_request`.

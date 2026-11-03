@@ -27,8 +27,14 @@ compaction and Claude's own optimism.
 
 **`lifecycle` makes no assumption about your stack.** It asks the repository how it builds,
 lints and tests itself — `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml`,
-`Cargo.toml` — and runs what it finds. A command it cannot find stays unset, and the step
-reports the skip rather than running something the project never had.
+`Cargo.toml`, `Package.swift` — and runs what it finds. A command it cannot find stays unset,
+and the step reports the skip rather than running something the project never had.
+
+**It checks every project in the repository, not only the root.** A Swift package in
+`recorder/` and a uv project in `transcribe/` are two projects, and every build, lint and test
+step runs both, every time — one after the other, the second still running when the first
+fails. Discovery is redone at each step, so a sub-project added mid-way is checked from the
+next step on without editing anything.
 
 **`project-init` is opinionated, and only when starting from nothing.** Asked to design a new
 frontend it defaults to an FSD-lite layout with Biome, Tailwind, shadcn and Radix, because the
@@ -78,8 +84,18 @@ bash /tmp/bwf/scripts/detect-project.sh /path/to/your/project
 ```
 
 It reports the stack and package manager, the real `build` / `lint` / `test` / `e2e`
-commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml` —
-and any file that looks like an existing plan. Then it asks you to confirm both halves once,
+commands — taken from `package.json` scripts, `Makefile` targets, `go.mod`, `pyproject.toml`,
+`Package.swift` — for the root and for every project one or two directories down, and any file
+that looks like an existing plan. The commands every step will actually run, with your
+overrides applied, come from its companion:
+
+```
+bash /tmp/bwf/scripts/project-commands.sh markdown /path/to/your/project   # the list, for people
+bash /tmp/bwf/scripts/project-commands.sh run test /path/to/your/project   # run every project's tests
+```
+
+Dependency trees, build output, gitignored directories, `fixtures`, `testdata` and `templates`
+are not scanned. Anything else that is not yours to check goes in `exclude`. Then it asks you to confirm both halves once,
 and writes `.bergant-workflow.json`, which is committed with the project.
 
 **If the project has no tests, it offers to add them.** That is the common case, and working out
@@ -333,8 +349,13 @@ the real cost sits (~3–4k tokens), and only when you actually use it.
 Worth knowing before you install something that ships hooks:
 
 - `.bergant-workflow.json` — project root, written once by adoption. **The skill commits it**
-  after you confirm its contents. It records the build/lint/test commands you approved and
-  where your plan lives.
+  after you confirm its contents. It records where your commands differ from what discovery
+  finds — per project, under `projects` — and where your plan lives.
+- `docs/bergant-workflow-commands.md` — every project and its build, lint and test commands,
+  generated from discovery plus your overrides at adoption, at each `start` and at `CLOSE`.
+  It is the one list both you and the agents use; `CLAUDE.md` or `AGENTS.md`, if you have one,
+  gets a single line pointing at it. Do not edit it: change `.bergant-workflow.json` and it
+  follows.
 - `.lifecycle-state.json` — project root, git-ignored, deleted automatically on `CLOSE`.
   It lives at the root rather than under `.claude/` because the latter triggers a
   write-permission prompt on every single update. The hooks find it by walking up from the
@@ -407,7 +428,8 @@ bergant-workflow/
 │   ├── project-init/
 │   └── lifecycle/
 ├── scripts/
-│   └── detect-project.sh
+│   ├── detect-project.sh
+│   └── project-commands.sh
 ├── hooks/
 │   ├── hooks.json
 │   ├── lib-state.sh

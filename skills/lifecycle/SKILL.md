@@ -63,7 +63,7 @@ On `start`, do things in this order and no other: git preflight, then ADOPT if
 `awaitingCompact: true`. Writing that flag first blocks the agent that ADOPT needs.
 
 Before anything else: read `.bergant-workflow.json` at the project root if it exists — it holds
-the commands and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, the project has
+the command overrides and `planGlob` that rules 6 and 8 depend on. If it does NOT exist, the project has
 not been adopted: run the ADOPT section of steps.md first, whatever the requested command was.
 
 Execute lifecycle command: $ARGUMENTS
@@ -79,9 +79,13 @@ Critical rules:
 7. GitHub operations via the `gh` CLI (`gh pr create`, `gh pr merge`). Never use interactive
    flags — pass `--title`/`--body` explicitly. If `gh` is missing or unauthenticated, fall back
    to GitHub MCP (`mcp__github__*`).
-8. **Never assume the toolchain.** Build, lint and test commands come from `commands` in
-   `.bergant-workflow.json`. A command recorded as `null` means the project has none — say so
-   and move on. Never fall back to `npm run <anything>` on a project that never asked for it.
+8. **Never assume the toolchain.** Build, lint and test run through
+   `bash "SCRIPTS_DIR/project-commands.sh" run <build|lint|test|e2e>`, which rediscovers every
+   project in the repository (root and sub-projects) and applies `commands`, `projects` and
+   `exclude` from `.bergant-workflow.json` on top. Never compose the commands yourself and never
+   run only `commands.*`: a sub-project nobody listed still has tests. A project without a
+   command is a reported skip. Never fall back to `npm run <anything>` on a project that never
+   asked for it.
 9. **Never mutate Git beyond what the current step prescribes.** No `stash`, no `checkout -f`,
    no `clean`, no `add -A`, no `branch -D`, no force push. If the tree is not what the step
    expects, stop and ask.
@@ -116,7 +120,7 @@ Display a formatted table:
 | `start <task>` | Git preflight, then initialize state with `awaitingCompact: true`. Supports `--skip-scope`. |
 | `advance` | Move to next step (validates current is completed, respects gates). |
 | `complete <step>` | User confirms a gate. Marks step completed, advances. |
-| `adopt` | Learn an existing project: detect its build/lint/test commands and any plan it already has, confirm both with the user, write `.bergant-workflow.json`. Runs automatically on the first `start` when that file is missing. |
+| `adopt` | Learn an existing project: detect the build/lint/test commands of the root and every sub-project, and any plan it already has, confirm both with the user, write `.bergant-workflow.json` and `docs/bergant-workflow-commands.md`. Runs automatically on the first `start` when that file is missing. |
 | `recover` | Reconstruct state from git/build/tests when state file is lost. |
 | `skip-compact` | The user's deliberate opt-out of a pending compact. Sets `awaitingCompact: false` and records `compactSkippedAt` plus the step it was skipped before. Only ever run when the user asked for it in so many words — never to get past a block on your own initiative. |
 | `next` | Read the plan files matched by `planGlob` (default `docs/plan/slice-*.md`), take the lowest-numbered file whose `Status:` line is not `done`, find its first unticked `- [ ]` task, run `start` on it. With `planGlob: null` there is nothing to pick up — say so and ask the user what to work on. |
