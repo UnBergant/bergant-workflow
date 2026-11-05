@@ -184,6 +184,8 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
   advance exactly as "On resume after compact" below says: SCOPE (present and STOP), or PLAN
   with `--skip-scope`.
 - **Gate on** — everything below applies unchanged:
+- **End the return message with a ready-to-paste compact prompt** (see "Compact prompt" below).
+  Never just say "run /compact": the user should be able to copy one block and go.
 - After `/compact`: SessionStart(compact) hook clears `awaitingCompact`.
 - The gate blocks agent launches and edit tools while the flag is set; `Bash` is deliberately
   left alone so the user can still look around while deciding. If the user explicitly says to
@@ -193,6 +195,30 @@ HEAD, or a half-finished rebase is exactly the surgery the preflight exists to p
 - On resume after compact: mark CONTEXT_CHECK completed, advance to SCOPE.
   - If SCOPE already `"completed"` (via `--skip-scope`): skip to PLAN and begin executing.
   - If SCOPE `"pending"`: advance to SCOPE (user gate — present requirements and STOP).
+
+### Compact prompt
+
+Whenever a run stops on the compact gate (after `start`, after PLAN), its return message ends
+with exactly this block, filled in. `/compact` takes free-text instructions, so the block is
+the command itself: the user pastes it and nothing else. With the gate off, the end of PLAN
+adds the same block as a hint (see PLAN), and nothing is blocked.
+
+````
+Перед <next step> нужен compact. Вставь:
+
+```
+/compact Сохрани для lifecycle: задача <task>, ветка <branch> от <baseBranch>, следующий шаг <next step>. Решения: <decisions the user took in this session that are not yet in a repo file>. Не закоммичено: <uncommitted paths, or "ничего">. Открыто: <questions waiting on the user, promised follow-ups>. Ограничения: <standing instructions from the user that still hold>.
+```
+
+Продолжить без compact: `/bergant-workflow:lifecycle skip-compact`.
+````
+
+Rules:
+- One line after `/compact`, no line breaks: the command takes everything up to Enter.
+- Only what a fresh context cannot read back from the repo or `.lifecycle-state.json`. Name
+  files instead of retyping them.
+- Keep it under ~600 characters. Drop a section rather than pad it.
+- Write it in the language the user wrote the `start` arguments in.
 
 ## SCOPE (gate: user)
 
@@ -224,10 +250,13 @@ Then advance `currentStep` to `"PLAN"` and set `steps.PLAN.status` to `"in_progr
   - Save component inventory to `"components"` array in COMPONENTS step.
 - **Gate on** (`"compactGate": true` in `.bergant-workflow.json`):
   - **Set `"awaitingCompact": true`**.
-  - Display: `✅ PLAN completed. 🧹 Run /compact before continuing.`
+  - Display `✅ PLAN completed.` and end the return message with the compact prompt (see
+    "Compact prompt" under CONTEXT_CHECK), with COMPONENTS (or IMPLEMENT) as the next step.
   - Do NOT start COMPONENTS.
 - **Gate off** (the default, also when the field is missing): leave `awaitingCompact` false,
-  display `✅ PLAN completed.`, and advance to COMPONENTS in the same run — which stops at its
+  display `✅ PLAN completed.`, add the compact prompt (see "Compact prompt" under CONTEXT_CHECK)
+  as an optional hint, worded "Если контекст разросся, можно сжать:" instead of "нужен
+  compact", and advance to COMPONENTS in the same run — which stops at its
   user gate, or auto-skips to IMPLEMENT for a task with no UI.
 
 ## COMPONENTS (gate: user)

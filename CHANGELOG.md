@@ -6,6 +6,16 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [0.14.0] — 2026-11-05
 
+### Added
+- **A ready `/compact` command instead of "run /compact".** When a run stops on the compact
+  gate it ends with one line to paste: `/compact` plus what to keep (task, branch, next step,
+  decisions not yet in a file, uncommitted paths, open questions). The hook message asks for
+  the same. With the gate off, the end of `PLAN` offers the same line as a hint and does not
+  block.
+- **`CLOSE` hands off to a fresh session.** It suggests `/clear` and ends with a ready prompt
+  for the next slice: what was merged, decisions and debt a new session cannot read from the
+  repo, and the user's standing instructions.
+
 ### Changed
 - **The compact gate is now opt-in, and off by default.** It was built when every step ran
   inline in the main session and a bloated context was the real risk. The heavy steps now run in
